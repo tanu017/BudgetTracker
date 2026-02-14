@@ -23,6 +23,9 @@ class BudgetViewModelFactory(
             modelClass.isAssignableFrom(AccountsViewModel::class.java) -> {
                 AccountsViewModel(accountRepository) as T
             }
+            modelClass.isAssignableFrom(DashboardViewModel::class.java) -> {
+                DashboardViewModel(transactionRepository, accountRepository) as T
+            }
             modelClass.isAssignableFrom(CategoryViewModel::class.java) -> {
                 CategoryViewModel(categoryRepository) as T
             }

@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
@@ -27,7 +29,7 @@ import com.example.budgettracker.viewmodel.TransactionViewModel
 
 /**
  * Transaction Screen built with Jetpack Compose.
- * Features a real input form and a reactive list of transactions.
+ * Features a Summary Card, Add Form, and a list with Delete functionality.
  */
 @Composable
 fun TransactionScreen() {
@@ -51,7 +53,13 @@ fun TransactionScreen() {
     // --- FORM STATE ---
     var amountText by remember { mutableStateOf("") }
     var categoryText by remember { mutableStateOf("") }
-    var selectedType by remember { mutableStateOf("EXPENSE") } // Default type
+    var selectedType by remember { mutableStateOf("EXPENSE") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // --- CALCULATE SUMMARY ---
+    val totalIncome = transactions.filter { it.type == "INCOME" }.sumOf { it.amount }
+    val totalExpense = transactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+    val balance = totalIncome - totalExpense
 
     Column(
         modifier = Modifier
@@ -61,45 +69,74 @@ fun TransactionScreen() {
     ) {
         Text(
             text = "Budget Tracker",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 16.dp)
+            fontSize = 26.sp,
+            fontWeight = FontWeight.ExtraBold,
+            modifier = Modifier.padding(bottom = 16.dp),
+            color = MaterialTheme.colorScheme.primary
         )
 
-        // --- ADD TRANSACTION FORM ---
+        // 1. SUMMARY SECTION
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        ) {
+            Row(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                SummaryItem("Income", "₹%.2f".format(totalIncome), Color(0xFF2E7D32))
+                SummaryItem("Expense", "₹%.2f".format(totalExpense), Color(0xFFC62828))
+                SummaryItem("Balance", "₹%.2f".format(balance), MaterialTheme.colorScheme.onPrimaryContainer)
+            }
+        }
+
+        // 2. ADD TRANSACTION FORM
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp),
             elevation = CardDefaults.cardElevation(4.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(text = "Add Transaction", fontWeight = FontWeight.Bold)
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(text = "Add New Record", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                 
                 OutlinedTextField(
                     value = amountText,
-                    onValueChange = { amountText = it },
+                    onValueChange = { 
+                        amountText = it
+                        errorMessage = null 
+                    },
                     label = { Text("Amount") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
                 )
 
                 OutlinedTextField(
                     value = categoryText,
-                    onValueChange = { categoryText = it },
-                    label = { Text("Category (e.g. Food, Salary)") },
-                    modifier = Modifier.fillMaxWidth()
+                    onValueChange = { 
+                        categoryText = it
+                        errorMessage = null
+                    },
+                    label = { Text("Category (e.g. Food, Rent)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
                 )
 
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Simple Toggle Buttons for Income/Expense
                     Button(
                         onClick = { selectedType = "INCOME" },
+                        modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (selectedType == "INCOME") Color(0xFF4CAF50) else Color.Gray
                         )
@@ -107,34 +144,41 @@ fun TransactionScreen() {
 
                     Button(
                         onClick = { selectedType = "EXPENSE" },
+                        modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (selectedType == "EXPENSE") Color(0xFFF44336) else Color.Gray
                         )
                     ) { Text("Expense") }
                 }
 
+                errorMessage?.let {
+                    Text(text = it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                }
+
                 Button(
                     onClick = {
                         val amount = amountText.toDoubleOrNull()
-                        if (amount != null && amount > 0 && categoryText.isNotBlank()) {
-                            // Create Entity
+                        if (amount == null || amount <= 0) {
+                            errorMessage = "Please enter a valid amount"
+                        } else if (categoryText.isBlank()) {
+                            errorMessage = "Please enter a category"
+                        } else {
                             val newTransaction = TransactionEntity(
                                 amount = amount,
                                 type = selectedType,
                                 category = categoryText,
-                                accountName = "Cash", // Default for now
+                                accountName = "Cash",
                                 source = "MANUAL",
                                 timestamp = System.currentTimeMillis()
                             )
-                            // Save via ViewModel
                             viewModel.insertTransaction(newTransaction)
-                            
-                            // Reset Fields
                             amountText = ""
                             categoryText = ""
+                            errorMessage = null
                         }
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium
                 ) {
                     Text("Save Transaction")
                 }
@@ -143,26 +187,41 @@ fun TransactionScreen() {
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-        // --- TRANSACTION LIST ---
+        // 3. TRANSACTION LIST
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(bottom = 16.dp)
         ) {
             items(
                 items = transactions,
                 key = { it.id }
             ) { transaction ->
-                TransactionItem(transaction)
+                TransactionItem(
+                    transaction = transaction,
+                    onDelete = { viewModel.deleteTransaction(transaction) }
+                )
             }
         }
     }
 }
 
 /**
- * Individual Transaction Item UI component.
+ * Helper component for Summary Section
  */
 @Composable
-fun TransactionItem(transaction: TransactionEntity) {
+fun SummaryItem(label: String, value: String, color: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = label, fontSize = 12.sp, color = Color.DarkGray)
+        Text(text = value, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = color)
+    }
+}
+
+/**
+ * Individual Transaction Item UI component with Delete functionality.
+ */
+@Composable
+fun TransactionItem(transaction: TransactionEntity, onDelete: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(2.dp),
@@ -177,7 +236,7 @@ fun TransactionItem(transaction: TransactionEntity) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = transaction.category,
                     fontWeight = FontWeight.SemiBold,
@@ -190,12 +249,22 @@ fun TransactionItem(transaction: TransactionEntity) {
                 )
             }
             
-            Text(
-                text = "₹%.2f".format(transaction.amount),
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "₹%.2f".format(transaction.amount),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete",
+                        tint = Color(0xFFB71C1C)
+                    )
+                }
+            }
         }
     }
 }

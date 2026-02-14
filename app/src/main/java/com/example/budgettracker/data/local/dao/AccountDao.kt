@@ -17,6 +17,12 @@ interface AccountDao {
     suspend fun updateAccount(account: AccountEntity)
 
     /**
+     * Deletes an account from the database.
+     */
+    @Delete
+    suspend fun deleteAccount(account: AccountEntity)
+
+    /**
      * Returns a list of all bank/cash accounts.
      */
     @Query("SELECT * FROM accounts")

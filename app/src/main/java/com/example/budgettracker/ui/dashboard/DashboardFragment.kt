@@ -10,19 +10,11 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.budgettracker.data.local.AppDatabase
 import com.example.budgettracker.data.local.entities.TransactionEntity
-import com.example.budgettracker.repository.AccountRepository
-import com.example.budgettracker.repository.CategoryRepository
-import com.example.budgettracker.repository.ReminderRepository
-import com.example.budgettracker.repository.TransactionRepository
-import com.example.budgettracker.viewmodel.BudgetViewModelFactory
 import com.example.budgettracker.viewmodel.DashboardViewModel
 import com.github.mikephil.charting.charts.BarChart
 import com.github.mikephil.charting.components.XAxis
@@ -33,21 +25,10 @@ import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 
 /**
  * Dashboard Screen with MPAndroidChart for professional analytics.
+ * This component now accepts its ViewModel as a parameter, following better architecture practices.
  */
 @Composable
-fun DashboardFragment() {
-    val context = LocalContext.current
-    val database = remember { AppDatabase.getDatabase(context) }
-    
-    val viewModel: DashboardViewModel = viewModel(
-        factory = BudgetViewModelFactory(
-            TransactionRepository(database.transactionDao()),
-            AccountRepository(database.accountDao()),
-            CategoryRepository(database.categoryDao()),
-            ReminderRepository(database.reminderDao())
-        )
-    )
-
+fun DashboardFragment(viewModel: DashboardViewModel) {
     val transactions by viewModel.allTransactions.observeAsState(initial = emptyList())
     val accounts by viewModel.allAccounts.observeAsState(initial = emptyList())
 
@@ -201,12 +182,12 @@ private fun setupChartStyle(chart: BarChart) {
     chart.xAxis.apply {
         position = XAxis.XAxisPosition.BOTTOM
         setDrawGridLines(false)
-        setDrawAxisLine(false)   // NEW
+        setDrawAxisLine(false)
         granularity = 1f
     }
 
     chart.axisLeft.apply {
-        setDrawGridLines(false)  // NEW
+        setDrawGridLines(false)
         axisMinimum = 0f
     }
 

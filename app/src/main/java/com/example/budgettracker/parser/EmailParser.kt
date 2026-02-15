@@ -55,12 +55,12 @@ object EmailParser {
                 else -> "EXPENSE" // Default to expense for safety
             }
 
-            // Extract Merchant/Category hint
+            // Extract Merchant
             val merchantMatch = merchantRegex.find(content)
             val merchant = merchantMatch?.groupValues?.get(1)?.trim()
             
-            // Assign category based on merchant or default
-            val category = merchant ?: "General"
+            // Detect Category using smart classifier
+            val category = CategoryClassifier.detectCategory(merchant)
 
             return ParsedTransaction(
                 amount = amount,

@@ -1,5 +1,6 @@
 package com.example.budgettracker.ui.transactions
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.budgettracker.data.local.AppDatabase
 import com.example.budgettracker.data.local.entities.TransactionEntity
@@ -29,7 +31,7 @@ import com.example.budgettracker.viewmodel.TransactionViewModel
 
 /**
  * Transaction Screen built with Jetpack Compose.
- * Features a Summary Card, Add Form, and a list with Delete functionality.
+ * Features a Summary Card, Add Form, and a list with Edit/Delete functionality.
  */
 @Composable
 fun TransactionScreen() {
@@ -56,10 +58,25 @@ fun TransactionScreen() {
     var selectedType by remember { mutableStateOf("EXPENSE") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
+    // --- EDIT STATE ---
+    var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
+
     // --- CALCULATE SUMMARY ---
     val totalIncome = transactions.filter { it.type == "INCOME" }.sumOf { it.amount }
     val totalExpense = transactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
     val balance = totalIncome - totalExpense
+
+    // Show Edit Dialog if a transaction is selected
+    editingTransaction?.let { transaction ->
+        EditTransactionDialog(
+            transaction = transaction,
+            onDismiss = { editingTransaction = null },
+            onSave = { updatedTransaction ->
+                viewModel.updateTransaction(updatedTransaction)
+                editingTransaction = null
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -199,11 +216,108 @@ fun TransactionScreen() {
             ) { transaction ->
                 TransactionItem(
                     transaction = transaction,
-                    onDelete = { viewModel.deleteTransaction(transaction) }
+                    onDelete = { viewModel.deleteTransaction(transaction) },
+                    onClick = { editingTransaction = transaction }
                 )
             }
         }
     }
+}
+
+/**
+ * Dialog for editing an existing transaction.
+ */
+@Composable
+fun EditTransactionDialog(
+    transaction: TransactionEntity,
+    onDismiss: () -> Unit,
+    onSave: (TransactionEntity) -> Unit
+) {
+    var amountText by remember { mutableStateOf(transaction.amount.toString()) }
+    var categoryText by remember { mutableStateOf(transaction.category) }
+    var selectedType by remember { mutableStateOf(transaction.type) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = "Edit Transaction") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { 
+                        amountText = it
+                        errorMessage = null 
+                    },
+                    label = { Text("Amount") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = categoryText,
+                    onValueChange = { 
+                        categoryText = it
+                        errorMessage = null
+                    },
+                    label = { Text("Category") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { selectedType = "INCOME" },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selectedType == "INCOME") Color(0xFF4CAF50) else Color.Gray
+                        )
+                    ) { Text("Income") }
+
+                    Button(
+                        onClick = { selectedType = "EXPENSE" },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selectedType == "EXPENSE") Color(0xFFF44336) else Color.Gray
+                        )
+                    ) { Text("Expense") }
+                }
+
+                errorMessage?.let {
+                    Text(text = it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val amount = amountText.toDoubleOrNull()
+                    if (amount == null || amount <= 0) {
+                        errorMessage = "Invalid amount"
+                    } else if (categoryText.isBlank()) {
+                        errorMessage = "Invalid category"
+                    } else {
+                        onSave(transaction.copy(
+                            amount = amount,
+                            category = categoryText,
+                            type = selectedType
+                        ))
+                    }
+                }
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 /**
@@ -218,12 +332,14 @@ fun SummaryItem(label: String, value: String, color: Color) {
 }
 
 /**
- * Individual Transaction Item UI component with Delete functionality.
+ * Individual Transaction Item UI component with Edit/Delete functionality.
  */
 @Composable
-fun TransactionItem(transaction: TransactionEntity, onDelete: () -> Unit) {
+fun TransactionItem(transaction: TransactionEntity, onDelete: () -> Unit, onClick: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
         elevation = CardDefaults.cardElevation(2.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant

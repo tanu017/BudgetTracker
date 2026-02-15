@@ -1,5 +1,6 @@
 package com.example.budgettracker.ui.transactions
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,6 +21,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -41,7 +44,7 @@ import java.util.*
 
 /**
  * Transaction Screen built with Jetpack Compose.
- * Features Search, Filters, Summary Card, Add Form, and a Date-Grouped list with Sticky Headers.
+ * Features Search, Filters, Monthly Analytics, Add Form, and a Grouped List with Sticky Headers.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -63,6 +66,11 @@ fun TransactionScreen() {
 
     val transactions by viewModel.allTransactions.observeAsState(initial = emptyList())
 
+    // --- REUSABLE FORMATTERS (Performance Fix) ---
+    val monthFormatter = remember { SimpleDateFormat("MM-yyyy", Locale.getDefault()) }
+    val monthLabelFormatter = remember { SimpleDateFormat("MMM", Locale.getDefault()) }
+    val fullDateFormatter = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+
     // --- FILTER & SEARCH STATE ---
     var selectedTypeFilter by remember { mutableStateOf("ALL") }
     var selectedCategoryFilter by remember { mutableStateOf("ALL") }
@@ -79,7 +87,7 @@ fun TransactionScreen() {
     // --- EDIT STATE ---
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
 
-    // --- FILTERING & GROUPING LOGIC ---
+    // --- GROUPING LOGIC (Safer Grouping by Long timestamp) ---
     val categories = remember(transactions) {
         listOf("ALL") + transactions.map { it.category }.distinct().sorted()
     }
@@ -93,13 +101,37 @@ fun TransactionScreen() {
                 matchesType && matchesCategory && matchesSearch
             }
             .sortedByDescending { it.timestamp }
-            .groupBy { formatHeaderDate(it.timestamp) }
+            .groupBy { startOfDay(it.timestamp) }
     }
 
     // --- CALCULATE SUMMARY ---
     val totalIncome = transactions.filter { it.type == "INCOME" }.sumOf { it.amount }
     val totalExpense = transactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
     val balance = totalIncome - totalExpense
+
+    // --- ANALYTICS LOGIC (Performance Fix — using shared formatters) ---
+    val monthlyData = remember(transactions) {
+        val calendar = Calendar.getInstance()
+        val data = mutableListOf<MonthlyAnalytics>()
+        
+        for (i in 5 downTo 0) {
+            calendar.time = Date()
+            calendar.add(Calendar.MONTH, -i)
+            val monthYearKey = monthFormatter.format(calendar.time)
+            val monthLabel = monthLabelFormatter.format(calendar.time)
+            
+            val monthTransactions = transactions.filter { tx ->
+                monthFormatter.format(Date(tx.timestamp)) == monthYearKey
+            }
+            
+            data.add(MonthlyAnalytics(
+                label = monthLabel,
+                income = monthTransactions.filter { it.type == "INCOME" }.sumOf { it.amount }.toFloat(),
+                expense = monthTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }.toFloat()
+            ))
+        }
+        data
+    }
 
     // Material3 Date Picker Dialog Logic
     if (showDatePicker) {
@@ -124,6 +156,7 @@ fun TransactionScreen() {
     editingTransaction?.let { transaction ->
         EditTransactionDialog(
             transaction = transaction,
+            dateFormatter = fullDateFormatter,
             onDismiss = { editingTransaction = null },
             onSave = { updatedTransaction ->
                 viewModel.updateTransaction(updatedTransaction)
@@ -169,7 +202,12 @@ fun TransactionScreen() {
             }
         }
 
-        // 3. ADD TRANSACTION FORM
+        // 3. MONTHLY ANALYTICS CHART
+        item {
+            AnalyticsCard(monthlyData)
+        }
+
+        // 4. ADD TRANSACTION FORM
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -199,7 +237,7 @@ fun TransactionScreen() {
                     )
 
                     OutlinedTextField(
-                        value = formatDate(selectedDate),
+                        value = fullDateFormatter.format(Date(selectedDate)),
                         onValueChange = { },
                         label = { Text("Date") },
                         readOnly = true,
@@ -258,7 +296,7 @@ fun TransactionScreen() {
             }
         }
 
-        // 4. STICKY HEADER FOR SEARCH + FILTERS
+        // 5. STICKY HEADER FOR SEARCH + FILTERS
         stickyHeader {
             Column(
                 modifier = Modifier
@@ -322,7 +360,7 @@ fun TransactionScreen() {
             }
         }
 
-        // 5. TRANSACTION LIST ITEMS OR EMPTY STATE
+        // 6. TRANSACTION LIST ITEMS OR EMPTY STATE
         if (groupedTransactions.isEmpty()) {
             item {
                 Column(
@@ -355,11 +393,11 @@ fun TransactionScreen() {
                 }
             }
         } else {
-            // Grouped items with Sticky Date Headers
-            groupedTransactions.forEach { (dateLabel, transactionsForDate) ->
+            // Grouped items with Sticky Date Headers (Improved Grouping)
+            groupedTransactions.forEach { (startOfDayTimestamp, transactionsForDate) ->
                 stickyHeader {
                     Text(
-                        text = dateLabel,
+                        text = formatHeaderDate(startOfDayTimestamp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(MaterialTheme.colorScheme.surfaceVariant)
@@ -376,6 +414,7 @@ fun TransactionScreen() {
                 ) { transaction ->
                     TransactionItem(
                         transaction = transaction,
+                        dateFormatter = fullDateFormatter,
                         onDelete = { viewModel.deleteTransaction(transaction) },
                         onClick = { editingTransaction = transaction }
                     )
@@ -390,7 +429,12 @@ fun TransactionScreen() {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditTransactionDialog(transaction: TransactionEntity, onDismiss: () -> Unit, onSave: (TransactionEntity) -> Unit) {
+fun EditTransactionDialog(
+    transaction: TransactionEntity,
+    dateFormatter: SimpleDateFormat,
+    onDismiss: () -> Unit,
+    onSave: (TransactionEntity) -> Unit
+) {
     var amountText by remember { mutableStateOf(transaction.amount.toString()) }
     var categoryText by remember { mutableStateOf(transaction.category) }
     var selectedType by remember { mutableStateOf(transaction.type) }
@@ -414,7 +458,7 @@ fun EditTransactionDialog(transaction: TransactionEntity, onDismiss: () -> Unit,
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = amountText, onValueChange = { amountText = it }, label = { Text("Amount") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = categoryText, onValueChange = { categoryText = it }, label = { Text("Category") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = formatDate(selectedDate), onValueChange = { }, label = { Text("Date") }, readOnly = true, enabled = false, modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true }, colors = OutlinedTextFieldDefaults.colors(disabledTextColor = MaterialTheme.colorScheme.onSurface))
+                OutlinedTextField(value = dateFormatter.format(Date(selectedDate)), onValueChange = { }, label = { Text("Date") }, readOnly = true, enabled = false, modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true }, colors = OutlinedTextFieldDefaults.colors(disabledTextColor = MaterialTheme.colorScheme.onSurface))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { selectedType = "INCOME" }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (selectedType == "INCOME") Color(0xFF4CAF50) else Color.Gray)) { Text("Income") }
                     Button(onClick = { selectedType = "EXPENSE" }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (selectedType == "EXPENSE") Color(0xFFF44336) else Color.Gray)) { Text("Expense") }
@@ -426,6 +470,85 @@ fun EditTransactionDialog(transaction: TransactionEntity, onDismiss: () -> Unit,
     )
 }
 
+/**
+ * Data model for Monthly Analytics.
+ */
+data class MonthlyAnalytics(val label: String, val income: Float, val expense: Float)
+
+/**
+ * Custom Bar Chart using Canvas.
+ */
+@Composable
+fun AnalyticsCard(data: List<MonthlyAnalytics>) {
+    if (data.isEmpty()) return
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(text = "Monthly Analytics", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            val maxVal = (data.maxOfOrNull { maxOf(it.income, it.expense) } ?: 100f).coerceAtLeast(100f)
+            
+            Box(modifier = Modifier.fillMaxWidth().height(150.dp)) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val canvasWidth = size.width
+                    val canvasHeight = size.height
+                    val barWidth = 16.dp.toPx()
+                    val groupWidth = 2 * barWidth
+                    val spacing = (canvasWidth - (data.size * groupWidth)) / (data.size + 1)
+                    
+                    data.forEachIndexed { index, item ->
+                        val xBase = spacing + index * (groupWidth + spacing)
+                        
+                        // Income Bar (Green)
+                        val incomeHeight = (item.income / maxVal) * canvasHeight
+                        drawRect(
+                            color = Color(0xFF4CAF50),
+                            topLeft = Offset(xBase, canvasHeight - incomeHeight),
+                            size = Size(barWidth, incomeHeight)
+                        )
+                        
+                        // Expense Bar (Red)
+                        val expenseHeight = (item.expense / maxVal) * canvasHeight
+                        drawRect(
+                            color = Color(0xFFF44336),
+                            topLeft = Offset(xBase + barWidth, canvasHeight - expenseHeight),
+                            size = Size(barWidth, expenseHeight)
+                        )
+                    }
+                }
+            }
+            
+            // Labels Row (Aligned with bars)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                data.forEach { item ->
+                    Text(
+                        text = item.label,
+                        fontSize = 10.sp,
+                        color = Color.Gray,
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+            
+            // Legend
+            Row(modifier = Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.size(10.dp).background(Color(0xFF4CAF50)))
+                Text(text = " Income", fontSize = 10.sp, modifier = Modifier.padding(end = 16.dp))
+                Box(modifier = Modifier.size(10.dp).background(Color(0xFFF44336)))
+                Text(text = " Expense", fontSize = 10.sp)
+            }
+        }
+    }
+}
+
 @Composable
 fun SummaryItem(label: String, value: String, color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -435,12 +558,17 @@ fun SummaryItem(label: String, value: String, color: Color) {
 }
 
 @Composable
-fun TransactionItem(transaction: TransactionEntity, onDelete: () -> Unit, onClick: () -> Unit) {
+fun TransactionItem(
+    transaction: TransactionEntity,
+    dateFormatter: SimpleDateFormat,
+    onDelete: () -> Unit,
+    onClick: () -> Unit
+) {
     Card(modifier = Modifier.fillMaxWidth().clickable { onClick() }, elevation = CardDefaults.cardElevation(2.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
         Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(transaction.category, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
-                Text("${transaction.type} • ${formatDate(transaction.timestamp)}", color = if (transaction.type == "INCOME") Color(0xFF4CAF50) else Color(0xFFF44336), fontSize = 12.sp)
+                Text("${transaction.type} • ${dateFormatter.format(Date(transaction.timestamp))}", color = if (transaction.type == "INCOME") Color(0xFF4CAF50) else Color(0xFFF44336), fontSize = 12.sp)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("₹%.2f".format(transaction.amount), fontWeight = FontWeight.Bold, fontSize = 20.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 8.dp))
@@ -450,27 +578,29 @@ fun TransactionItem(transaction: TransactionEntity, onDelete: () -> Unit, onClic
     }
 }
 
-private fun formatDate(timestamp: Long): String {
-    return SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(timestamp))
+/**
+ * Returns timestamp for the start of the day (midnight).
+ */
+private fun startOfDay(timestamp: Long): Long {
+    val cal = Calendar.getInstance()
+    cal.timeInMillis = timestamp
+    cal.set(Calendar.HOUR_OF_DAY, 0)
+    cal.set(Calendar.MINUTE, 0)
+    cal.set(Calendar.SECOND, 0)
+    cal.set(Calendar.MILLISECOND, 0)
+    return cal.timeInMillis
 }
 
 /**
- * Formats a timestamp into a grouping header label.
+ * Formats a start-of-day timestamp into a grouping header label.
  */
-private fun formatHeaderDate(timestamp: Long): String {
-    val date = Date(timestamp)
-    val calendar = Calendar.getInstance().apply { time = date }
-    val today = Calendar.getInstance()
-    val yesterday = Calendar.getInstance().apply { add(Calendar.DATE, -1) }
+private fun formatHeaderDate(startOfDayTimestamp: Long): String {
+    val today = startOfDay(System.currentTimeMillis())
+    val yesterday = today - (24 * 60 * 60 * 1000)
 
-    return when {
-        isSameDay(calendar, today) -> "Today"
-        isSameDay(calendar, yesterday) -> "Yesterday"
-        else -> SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(date)
+    return when (startOfDayTimestamp) {
+        today -> "Today"
+        yesterday -> "Yesterday"
+        else -> SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(startOfDayTimestamp))
     }
-}
-
-private fun isSameDay(cal1: Calendar, cal2: Calendar): Boolean {
-    return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
-           cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
 }

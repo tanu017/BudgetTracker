@@ -1,7 +1,6 @@
 package com.example.budgettracker
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -12,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -26,15 +26,18 @@ import com.example.budgettracker.repository.ReminderRepository
 import com.example.budgettracker.repository.TransactionRepository
 import com.example.budgettracker.ui.accounts.AccountsFragment
 import com.example.budgettracker.ui.dashboard.DashboardFragment
+import com.example.budgettracker.ui.security.AppLockGate
 import com.example.budgettracker.ui.transactions.TransactionScreen
 import com.example.budgettracker.viewmodel.BudgetViewModelFactory
 import com.example.budgettracker.viewmodel.DashboardViewModel
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            BudgetTrackerApp()
+            AppLockGate {
+                BudgetTrackerApp()
+            }
         }
     }
 }

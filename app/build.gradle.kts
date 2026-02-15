@@ -55,6 +55,7 @@ dependencies {
     implementation(libs.androidx.compose.runtime.livedata)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.androidx.biometric)
 
     // Room dependencies
     implementation(libs.androidx.room.runtime)

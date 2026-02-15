@@ -41,7 +41,7 @@ import java.util.*
 
 /**
  * Transaction Screen built with Jetpack Compose.
- * Features Search, Filters, Summary Card, Add Form, and a list with Edit/Delete functionality.
+ * Features Search, Filters, Summary Card, Add Form, and a Date-Grouped list with Sticky Headers.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -79,18 +79,21 @@ fun TransactionScreen() {
     // --- EDIT STATE ---
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
 
-    // --- FILTERING & SEARCH LOGIC ---
+    // --- FILTERING & GROUPING LOGIC ---
     val categories = remember(transactions) {
         listOf("ALL") + transactions.map { it.category }.distinct().sorted()
     }
 
-    val filteredTransactions = remember(transactions, selectedTypeFilter, selectedCategoryFilter, searchQuery) {
-        transactions.filter { tx ->
-            val matchesType = if (selectedTypeFilter == "ALL") true else tx.type == selectedTypeFilter
-            val matchesCategory = if (selectedCategoryFilter == "ALL") true else tx.category == selectedCategoryFilter
-            val matchesSearch = tx.category.contains(searchQuery, ignoreCase = true)
-            matchesType && matchesCategory && matchesSearch
-        }
+    val groupedTransactions = remember(transactions, selectedTypeFilter, selectedCategoryFilter, searchQuery) {
+        transactions
+            .filter { tx ->
+                val matchesType = if (selectedTypeFilter == "ALL") true else tx.type == selectedTypeFilter
+                val matchesCategory = if (selectedCategoryFilter == "ALL") true else tx.category == selectedCategoryFilter
+                val matchesSearch = tx.category.contains(searchQuery, ignoreCase = true)
+                matchesType && matchesCategory && matchesSearch
+            }
+            .sortedByDescending { it.timestamp }
+            .groupBy { formatHeaderDate(it.timestamp) }
     }
 
     // --- CALCULATE SUMMARY ---
@@ -320,7 +323,7 @@ fun TransactionScreen() {
         }
 
         // 5. TRANSACTION LIST ITEMS OR EMPTY STATE
-        if (filteredTransactions.isEmpty()) {
+        if (groupedTransactions.isEmpty()) {
             item {
                 Column(
                     modifier = Modifier
@@ -352,22 +355,38 @@ fun TransactionScreen() {
                 }
             }
         } else {
-            items(
-                items = filteredTransactions,
-                key = { it.id }
-            ) { transaction ->
-                TransactionItem(
-                    transaction = transaction,
-                    onDelete = { viewModel.deleteTransaction(transaction) },
-                    onClick = { editingTransaction = transaction }
-                )
+            // Grouped items with Sticky Date Headers
+            groupedTransactions.forEach { (dateLabel, transactionsForDate) ->
+                stickyHeader {
+                    Text(
+                        text = dateLabel,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                items(
+                    items = transactionsForDate,
+                    key = { it.id }
+                ) { transaction ->
+                    TransactionItem(
+                        transaction = transaction,
+                        onDelete = { viewModel.deleteTransaction(transaction) },
+                        onClick = { editingTransaction = transaction }
+                    )
+                }
             }
         }
     }
 }
 
 /**
- * Dialog for editing an existing transaction (Preserved)
+ * Dialog for editing an existing transaction.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -433,4 +452,25 @@ fun TransactionItem(transaction: TransactionEntity, onDelete: () -> Unit, onClic
 
 private fun formatDate(timestamp: Long): String {
     return SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(timestamp))
+}
+
+/**
+ * Formats a timestamp into a grouping header label.
+ */
+private fun formatHeaderDate(timestamp: Long): String {
+    val date = Date(timestamp)
+    val calendar = Calendar.getInstance().apply { time = date }
+    val today = Calendar.getInstance()
+    val yesterday = Calendar.getInstance().apply { add(Calendar.DATE, -1) }
+
+    return when {
+        isSameDay(calendar, today) -> "Today"
+        isSameDay(calendar, yesterday) -> "Yesterday"
+        else -> SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(date)
+    }
+}
+
+private fun isSameDay(cal1: Calendar, cal2: Calendar): Boolean {
+    return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
+           cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
 }

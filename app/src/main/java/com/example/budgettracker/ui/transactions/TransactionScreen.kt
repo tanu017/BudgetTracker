@@ -1,13 +1,16 @@
 package com.example.budgettracker.ui.transactions
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Done
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
@@ -33,7 +36,8 @@ import java.util.*
 
 /**
  * Transaction Screen built with Jetpack Compose.
- * Features a Summary Card, Add Form, and a list with Edit/Delete functionality.
+ * Features Filters, Summary Card, Add Form, and a list with Edit/Delete functionality.
+ * This version uses a single LazyColumn for professional, smooth scrolling.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,6 +59,10 @@ fun TransactionScreen() {
 
     val transactions by viewModel.allTransactions.observeAsState(initial = emptyList())
 
+    // --- FILTER STATE ---
+    var selectedTypeFilter by remember { mutableStateOf("ALL") }
+    var selectedCategoryFilter by remember { mutableStateOf("ALL") }
+
     // --- FORM STATE ---
     var amountText by remember { mutableStateOf("") }
     var categoryText by remember { mutableStateOf("") }
@@ -66,12 +74,25 @@ fun TransactionScreen() {
     // --- EDIT STATE ---
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
 
+    // --- FILTERING LOGIC ---
+    val categories = remember(transactions) {
+        listOf("ALL") + transactions.map { it.category }.distinct().sorted()
+    }
+
+    val filteredTransactions = remember(transactions, selectedTypeFilter, selectedCategoryFilter) {
+        transactions.filter { tx ->
+            val matchesType = if (selectedTypeFilter == "ALL") true else tx.type == selectedTypeFilter
+            val matchesCategory = if (selectedCategoryFilter == "ALL") true else tx.category == selectedCategoryFilter
+            matchesType && matchesCategory
+        }
+    }
+
     // --- CALCULATE SUMMARY ---
     val totalIncome = transactions.filter { it.type == "INCOME" }.sumOf { it.amount }
     val totalExpense = transactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
     val balance = totalIncome - totalExpense
 
-    // Material3 Date Picker Dialog for Add Form
+    // Material3 Date Picker Dialog Logic
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDate)
         DatePickerDialog(
@@ -102,184 +123,191 @@ fun TransactionScreen() {
         )
     }
 
-    Column(
+    // --- MAIN UI USING ONE LAZYCOLUMN ---
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(horizontal = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)
     ) {
-        Text(
-            text = "Budget Tracker",
-            fontSize = 26.sp,
-            fontWeight = FontWeight.ExtraBold,
-            modifier = Modifier.padding(bottom = 16.dp),
-            color = MaterialTheme.colorScheme.primary
-        )
+        // 1. TITLE
+        item {
+            Text(
+                text = "Budget Tracker",
+                fontSize = 26.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
 
-        // 1. SUMMARY SECTION
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-        ) {
-            Row(
-                modifier = Modifier
-                    .padding(16.dp)
-                    .fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+        // 2. SUMMARY SECTION
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
-                SummaryItem("Income", "₹%.2f".format(totalIncome), Color(0xFF2E7D32))
-                SummaryItem("Expense", "₹%.2f".format(totalExpense), Color(0xFFC62828))
-                SummaryItem("Balance", "₹%.2f".format(balance), MaterialTheme.colorScheme.onPrimaryContainer)
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    SummaryItem("Income", "₹%.2f".format(totalIncome), Color(0xFF2E7D32))
+                    SummaryItem("Expense", "₹%.2f".format(totalExpense), Color(0xFFC62828))
+                    SummaryItem("Balance", "₹%.2f".format(balance), MaterialTheme.colorScheme.onPrimaryContainer)
+                }
             }
         }
 
-        // 2. ADD TRANSACTION FORM
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            elevation = CardDefaults.cardElevation(4.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+        // 3. ADD TRANSACTION FORM
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(4.dp)
             ) {
-                Text(text = "Add New Record", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                
-                OutlinedTextField(
-                    value = amountText,
-                    onValueChange = { 
-                        amountText = it
-                        errorMessage = null 
-                    },
-                    label = { Text("Amount") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = categoryText,
-                    onValueChange = { 
-                        categoryText = it
-                        errorMessage = null
-                    },
-                    label = { Text("Category (e.g. Food, Rent)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                // Date Picker Field
-                OutlinedTextField(
-                    value = formatDate(selectedDate),
-                    onValueChange = { },
-                    label = { Text("Date") },
-                    readOnly = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { showDatePicker = true },
-                    enabled = false, // Prevents typing, keeps it visually consistent
-                    colors = OutlinedTextFieldDefaults.colors(
-                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                        disabledBorderColor = MaterialTheme.colorScheme.outline,
-                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(text = "Add New Record", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    
+                    OutlinedTextField(
+                        value = amountText,
+                        onValueChange = { amountText = it; errorMessage = null },
+                        label = { Text("Amount") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
                     )
-                )
 
+                    OutlinedTextField(
+                        value = categoryText,
+                        onValueChange = { categoryText = it; errorMessage = null },
+                        label = { Text("Category (e.g. Food, Rent)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = formatDate(selectedDate),
+                        onValueChange = { },
+                        label = { Text("Date") },
+                        readOnly = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { showDatePicker = true },
+                        enabled = false,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                            disabledBorderColor = MaterialTheme.colorScheme.outline
+                        )
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { selectedType = "INCOME" },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (selectedType == "INCOME") Color(0xFF4CAF50) else Color.Gray
+                            )
+                        ) { Text("Income") }
+
+                        Button(
+                            onClick = { selectedType = "EXPENSE" },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (selectedType == "EXPENSE") Color(0xFFF44336) else Color.Gray
+                            )
+                        ) { Text("Expense") }
+                    }
+
+                    errorMessage?.let {
+                        Text(text = it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    }
+
+                    Button(
+                        onClick = {
+                            val amount = amountText.toDoubleOrNull()
+                            if (amount != null && amount > 0 && categoryText.isNotBlank()) {
+                                viewModel.insertTransaction(TransactionEntity(amount = amount, type = selectedType, category = categoryText, accountName = "Cash", source = "MANUAL", timestamp = selectedDate))
+                                amountText = ""; categoryText = ""; selectedDate = System.currentTimeMillis(); errorMessage = null
+                            } else { errorMessage = "Invalid input" }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Text("Save Transaction")
+                    }
+                }
+            }
+        }
+
+        // 4. FILTERS SECTION
+        item {
+            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                Text(text = "Filters", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Button(
-                        onClick = { selectedType = "INCOME" },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedType == "INCOME") Color(0xFF4CAF50) else Color.Gray
+                    listOf("ALL", "INCOME", "EXPENSE").forEach { type ->
+                        FilterChip(
+                            selected = selectedTypeFilter == type,
+                            onClick = { selectedTypeFilter = type },
+                            label = { Text(type) },
+                            leadingIcon = if (selectedTypeFilter == type) {
+                                { Icon(imageVector = Icons.Default.Done, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
+                            } else null
                         )
-                    ) { Text("Income") }
-
-                    Button(
-                        onClick = { selectedType = "EXPENSE" },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedType == "EXPENSE") Color(0xFFF44336) else Color.Gray
-                        )
-                    ) { Text("Expense") }
+                    }
                 }
 
-                errorMessage?.let {
-                    Text(text = it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-                }
-
-                Button(
-                    onClick = {
-                        val amount = amountText.toDoubleOrNull()
-                        if (amount == null || amount <= 0) {
-                            errorMessage = "Please enter a valid amount"
-                        } else if (categoryText.isBlank()) {
-                            errorMessage = "Please enter a category"
-                        } else {
-                            val newTransaction = TransactionEntity(
-                                amount = amount,
-                                type = selectedType,
-                                category = categoryText,
-                                accountName = "Cash",
-                                source = "MANUAL",
-                                timestamp = selectedDate
-                            )
-                            viewModel.insertTransaction(newTransaction)
-                            amountText = ""
-                            categoryText = ""
-                            selectedDate = System.currentTimeMillis()
-                            errorMessage = null
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Save Transaction")
+                    categories.forEach { category ->
+                        FilterChip(
+                            selected = selectedCategoryFilter == category,
+                            onClick = { selectedCategoryFilter = if (selectedCategoryFilter == category) "ALL" else category },
+                            label = { Text(category) },
+                            leadingIcon = if (selectedCategoryFilter == category) {
+                                { Icon(imageVector = Icons.Default.Done, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
+                            } else null
+                        )
+                    }
                 }
             }
         }
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-        // 3. TRANSACTION LIST
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(bottom = 16.dp)
-        ) {
-            items(
-                items = transactions,
-                key = { it.id }
-            ) { transaction ->
-                TransactionItem(
-                    transaction = transaction,
-                    onDelete = { viewModel.deleteTransaction(transaction) },
-                    onClick = { editingTransaction = transaction }
-                )
-            }
+        // 5. TRANSACTION LIST ITEMS
+        items(
+            items = filteredTransactions,
+            key = { it.id }
+        ) { transaction ->
+            TransactionItem(
+                transaction = transaction,
+                onDelete = { viewModel.deleteTransaction(transaction) },
+                onClick = { editingTransaction = transaction }
+            )
         }
     }
 }
 
 /**
- * Dialog for editing an existing transaction.
+ * Edit Dialog and Helper Components (Preserved)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditTransactionDialog(
-    transaction: TransactionEntity,
-    onDismiss: () -> Unit,
-    onSave: (TransactionEntity) -> Unit
-) {
+fun EditTransactionDialog(transaction: TransactionEntity, onDismiss: () -> Unit, onSave: (TransactionEntity) -> Unit) {
     var amountText by remember { mutableStateOf(transaction.amount.toString()) }
     var categoryText by remember { mutableStateOf(transaction.category) }
     var selectedType by remember { mutableStateOf(transaction.type) }
@@ -291,193 +319,54 @@ fun EditTransactionDialog(
         val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDate)
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    selectedDate = datePickerState.selectedDateMillis ?: transaction.timestamp
-                    showDatePicker = false
-                }) { Text("OK") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
-            }
-        ) {
-            DatePicker(state = datePickerState)
-        }
+            confirmButton = { TextButton(onClick = { selectedDate = datePickerState.selectedDateMillis ?: transaction.timestamp; showDatePicker = false }) { Text("OK") } },
+            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancel") } }
+        ) { DatePicker(datePickerState) }
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(text = "Edit Transaction") },
+        title = { Text("Edit Transaction") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = amountText,
-                    onValueChange = { 
-                        amountText = it
-                        errorMessage = null 
-                    },
-                    label = { Text("Amount") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = categoryText,
-                    onValueChange = { 
-                        categoryText = it
-                        errorMessage = null
-                    },
-                    label = { Text("Category") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                // Date Picker Field for Edit Dialog
-                OutlinedTextField(
-                    value = formatDate(selectedDate),
-                    onValueChange = { },
-                    label = { Text("Date") },
-                    readOnly = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { showDatePicker = true },
-                    enabled = false,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                        disabledBorderColor = MaterialTheme.colorScheme.outline,
-                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = { selectedType = "INCOME" },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedType == "INCOME") Color(0xFF4CAF50) else Color.Gray
-                        )
-                    ) { Text("Income") }
-
-                    Button(
-                        onClick = { selectedType = "EXPENSE" },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedType == "EXPENSE") Color(0xFFF44336) else Color.Gray
-                        )
-                    ) { Text("Expense") }
-                }
-
-                errorMessage?.let {
-                    Text(text = it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                OutlinedTextField(value = amountText, onValueChange = { amountText = it }, label = { Text("Amount") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = categoryText, onValueChange = { categoryText = it }, label = { Text("Category") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = formatDate(selectedDate), onValueChange = { }, label = { Text("Date") }, readOnly = true, enabled = false, modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true }, colors = OutlinedTextFieldDefaults.colors(disabledTextColor = MaterialTheme.colorScheme.onSurface))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { selectedType = "INCOME" }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (selectedType == "INCOME") Color(0xFF4CAF50) else Color.Gray)) { Text("Income") }
+                    Button(onClick = { selectedType = "EXPENSE" }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (selectedType == "EXPENSE") Color(0xFFF44336) else Color.Gray)) { Text("Expense") }
                 }
             }
         },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val amount = amountText.toDoubleOrNull()
-                    if (amount == null || amount <= 0) {
-                        errorMessage = "Invalid amount"
-                    } else if (categoryText.isBlank()) {
-                        errorMessage = "Invalid category"
-                    } else {
-                        onSave(transaction.copy(
-                            amount = amount,
-                            category = categoryText,
-                            type = selectedType,
-                            timestamp = selectedDate
-                        ))
-                    }
-                }
-            ) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
+        confirmButton = { Button(onClick = { onSave(transaction.copy(amount = amountText.toDoubleOrNull() ?: 0.0, category = categoryText, type = selectedType, timestamp = selectedDate)) }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
 
-/**
- * Helper component for Summary Section
- */
 @Composable
 fun SummaryItem(label: String, value: String, color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = label, fontSize = 12.sp, color = Color.DarkGray)
-        Text(text = value, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = color)
+        Text(label, fontSize = 12.sp, color = Color.DarkGray)
+        Text(value, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = color)
     }
 }
 
-/**
- * Individual Transaction Item UI component with Edit/Delete functionality.
- */
 @Composable
 fun TransactionItem(transaction: TransactionEntity, onDelete: () -> Unit, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
-        elevation = CardDefaults.cardElevation(2.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+    Card(modifier = Modifier.fillMaxWidth().clickable { onClick() }, elevation = CardDefaults.cardElevation(2.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+        Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = transaction.category,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 18.sp
-                )
-                Text(
-                    text = "${transaction.type} • ${formatDate(transaction.timestamp)}",
-                    color = if (transaction.type == "INCOME") Color(0xFF4CAF50) else Color(0xFFF44336),
-                    fontSize = 12.sp
-                )
+                Text(transaction.category, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+                Text("${transaction.type} • ${formatDate(transaction.timestamp)}", color = if (transaction.type == "INCOME") Color(0xFF4CAF50) else Color(0xFFF44336), fontSize = 12.sp)
             }
-            
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "₹%.2f".format(transaction.amount),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete",
-                        tint = Color(0xFFB71C1C)
-                    )
-                }
+                Text("₹%.2f".format(transaction.amount), fontWeight = FontWeight.Bold, fontSize = 20.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 8.dp))
+                IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFB71C1C)) }
             }
         }
     }
 }
 
-/**
- * Formats a timestamp into a readable date string.
- */
 private fun formatDate(timestamp: Long): String {
-    val sdf = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
-    return sdf.format(Date(timestamp))
+    return SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(timestamp))
 }

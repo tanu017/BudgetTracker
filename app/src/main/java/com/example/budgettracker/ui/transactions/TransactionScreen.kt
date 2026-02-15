@@ -12,11 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Done
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
@@ -47,8 +43,17 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
+ * Lightweight data model for automatic spending insights.
+ */
+data class SmartInsight(
+    val title: String,
+    val value: String,
+    val type: String // INFO, WARNING, POSITIVE
+)
+
+/**
  * Transaction Screen built with Jetpack Compose.
- * Features Search, Email Parsing, Filters, Analytics, and a Grouped List with Sticky Headers.
+ * Features Search, Email Parsing, Smart Insights, Filters, Analytics, and a Grouped List with Sticky Headers.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -70,6 +75,62 @@ fun TransactionScreen() {
 
     val transactions by viewModel.allTransactions.observeAsState(initial = emptyList())
 
+    // --- INSIGHTS LOGIC ---
+    val insights = remember(transactions) {
+        val list = mutableListOf<SmartInsight>()
+        if (transactions.isNotEmpty()) {
+            val calendar = Calendar.getInstance()
+            val currentMonth = calendar.get(Calendar.MONTH)
+            val currentYear = calendar.get(Calendar.YEAR)
+            
+            val thisMonthTransactions = transactions.filter {
+                val txCal = Calendar.getInstance().apply { timeInMillis = it.timestamp }
+                txCal.get(Calendar.MONTH) == currentMonth && txCal.get(Calendar.YEAR) == currentYear
+            }
+
+            // A) Top Category
+            val topCategory = thisMonthTransactions.filter { it.type == "EXPENSE" }
+                .groupBy { it.category }
+                .mapValues { it.value.sumOf { tx -> tx.amount } }
+                .maxByOrNull { it.value }
+            
+            if (topCategory != null) {
+                list.add(SmartInsight("Top Category", "${topCategory.key} • ₹${"%.0f".format(topCategory.value)}", "INFO"))
+            }
+
+            // B) MoM Comparison
+            val prevMonth = if (currentMonth == 0) 11 else currentMonth - 1
+            val prevYear = if (currentMonth == 0) currentYear - 1 else currentYear
+            
+            val prevMonthExpense = transactions.filter {
+                val txCal = Calendar.getInstance().apply { timeInMillis = it.timestamp }
+                it.type == "EXPENSE" && txCal.get(Calendar.MONTH) == prevMonth && txCal.get(Calendar.YEAR) == prevYear
+            }.sumOf { it.amount }
+            
+            val currMonthExpense = thisMonthTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+            
+            if (prevMonthExpense > 0) {
+                val diff = ((currMonthExpense - prevMonthExpense) / prevMonthExpense) * 100
+                if (diff > 0) {
+                    list.add(SmartInsight("Month Comparison", "⬆ Spending increased by ${diff.toInt()}%", "WARNING"))
+                } else if (diff < 0) {
+                    list.add(SmartInsight("Month Comparison", "⬇ Spending reduced by ${diff.toInt().let { if(it<0) -it else it }}%", "POSITIVE"))
+                }
+            }
+
+            // C) Largest Single Transaction
+            val largestTx = thisMonthTransactions.filter { it.type == "EXPENSE" }.maxByOrNull { it.amount }
+            if (largestTx != null) {
+                list.add(SmartInsight("Largest Expense", "${largestTx.category} • ₹${largestTx.amount}", "INFO"))
+            }
+        }
+        
+        if (list.isEmpty()) {
+            list.add(SmartInsight("Welcome", "Add transactions to see smart insights", "INFO"))
+        }
+        list.take(3)
+    }
+
     // --- DIALOG & PARSER STATE ---
     var showEmailParserDialog by remember { mutableStateOf(false) }
 
@@ -90,10 +151,6 @@ fun TransactionScreen() {
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
 
     // --- FILTERING & GROUPING LOGIC ---
-    val categories = remember(transactions) {
-        listOf("ALL") + transactions.map { it.category }.distinct().sorted()
-    }
-
     val groupedTransactions = remember(transactions, selectedTypeFilter, selectedCategoryFilter, searchQuery) {
         transactions
             .filter { tx ->
@@ -104,6 +161,10 @@ fun TransactionScreen() {
             }
             .sortedByDescending { it.timestamp }
             .groupBy { startOfDay(it.timestamp) }
+    }
+
+    val categories = remember(transactions) {
+        listOf("ALL") + transactions.map { it.category }.distinct().sorted()
     }
 
     // --- CALCULATE SUMMARY ---
@@ -117,78 +178,37 @@ fun TransactionScreen() {
         val labelSdf = SimpleDateFormat("MMM", Locale.getDefault())
         val calendar = Calendar.getInstance()
         val data = mutableListOf<MonthlyAnalytics>()
-        
         for (i in 5 downTo 0) {
             calendar.time = Date()
             calendar.add(Calendar.MONTH, -i)
             val monthYearKey = sdf.format(calendar.time)
             val monthLabel = labelSdf.format(calendar.time)
-            
-            val monthTransactions = transactions.filter { tx ->
-                sdf.format(Date(tx.timestamp)) == monthYearKey
-            }
-            
-            data.add(MonthlyAnalytics(
-                label = monthLabel,
-                income = monthTransactions.filter { it.type == "INCOME" }.sumOf { it.amount }.toFloat(),
-                expense = monthTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }.toFloat()
-            ))
+            val monthTransactions = transactions.filter { sdf.format(Date(it.timestamp)) == monthYearKey }
+            data.add(MonthlyAnalytics(label = monthLabel, income = monthTransactions.filter { it.type == "INCOME" }.sumOf { it.amount }.toFloat(), expense = monthTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }.toFloat()))
         }
         data
     }
 
     // Dialogs
     if (showEmailParserDialog) {
-        EmailParserDialog(
-            onDismiss = { showEmailParserDialog = false },
-            onTransactionParsed = { parsedTx ->
-                viewModel.insertTransaction(parsedTx.toTransactionEntity())
-                showEmailParserDialog = false
-            }
-        )
+        EmailParserDialog(onDismiss = { showEmailParserDialog = false }, onTransactionParsed = { parsedTx -> viewModel.insertTransaction(parsedTx.toTransactionEntity()); showEmailParserDialog = false })
     }
-
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDate)
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    selectedDate = datePickerState.selectedDateMillis ?: System.currentTimeMillis()
-                    showDatePicker = false
-                }) { Text("OK") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
-            }
-        ) {
-            DatePicker(state = datePickerState)
-        }
+        DatePickerDialog(onDismissRequest = { showDatePicker = false }, confirmButton = { TextButton(onClick = { selectedDate = datePickerState.selectedDateMillis ?: System.currentTimeMillis(); showDatePicker = false }) { Text("OK") } }) { DatePicker(state = datePickerState) }
     }
-
     editingTransaction?.let { transaction ->
-        EditTransactionDialog(
-            transaction = transaction,
-            onDismiss = { editingTransaction = null },
-            onSave = { updatedTransaction ->
-                viewModel.updateTransaction(updatedTransaction)
-                editingTransaction = null
-            }
-        )
+        EditTransactionDialog(transaction = transaction, onDismiss = { editingTransaction = null }, onSave = { updatedTransaction -> viewModel.updateTransaction(updatedTransaction); editingTransaction = null })
     }
 
     // --- MAIN UI ---
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)
     ) {
-        item {
-            Text(text = "Budget Tracker", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 8.dp))
-        }
+        item { Text(text = "Budget Tracker", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 8.dp)) }
 
         item {
             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
@@ -200,16 +220,12 @@ fun TransactionScreen() {
             }
         }
 
-        // --- NEW: PASTE EMAIL BUTTON ---
+        // ⭐ SMART INSIGHTS SECTION
+        item { SmartInsightsCard(insights) }
+
         item {
-            OutlinedButton(
-                onClick = { showEmailParserDialog = true },
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(12.dp)
-            ) {
-                Icon(Icons.Default.Email, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Paste Email / SMS")
+            OutlinedButton(onClick = { showEmailParserDialog = true }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(12.dp)) {
+                Icon(Icons.Default.Email, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Paste Email / SMS")
             }
         }
 
@@ -220,16 +236,8 @@ fun TransactionScreen() {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(text = "Add New Record", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                     OutlinedTextField(value = amountText, onValueChange = { amountText = it; errorMessage = null }, label = { Text("Amount") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    OutlinedTextField(value = categoryText, onValueChange = { categoryText = it; errorMessage = null }, label = { Text("Category (e.g. Food, Rent)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    OutlinedTextField(
-                        value = SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(selectedDate)),
-                        onValueChange = { },
-                        label = { Text("Date") },
-                        readOnly = true,
-                        modifier = Modifier.fillMaxWidth().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { showDatePicker = true },
-                        enabled = false,
-                        colors = OutlinedTextFieldDefaults.colors(disabledTextColor = MaterialTheme.colorScheme.onSurface, disabledBorderColor = MaterialTheme.colorScheme.outline)
-                    )
+                    OutlinedTextField(value = categoryText, onValueChange = { categoryText = it; errorMessage = null }, label = { Text("Category") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    OutlinedTextField(value = SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(selectedDate)), onValueChange = { }, label = { Text("Date") }, readOnly = true, modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true }, enabled = false, colors = OutlinedTextFieldDefaults.colors(disabledTextColor = MaterialTheme.colorScheme.onSurface))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = { selectedType = "INCOME" }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (selectedType == "INCOME") Color(0xFF4CAF50) else Color.Gray)) { Text("Income") }
                         Button(onClick = { selectedType = "EXPENSE" }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (selectedType == "EXPENSE") Color(0xFFF44336) else Color.Gray)) { Text("Expense") }
@@ -240,7 +248,7 @@ fun TransactionScreen() {
                         if (amount != null && amount > 0 && categoryText.isNotBlank()) {
                             viewModel.insertTransaction(TransactionEntity(amount = amount, type = selectedType, category = categoryText, accountName = "Cash", source = "MANUAL", timestamp = selectedDate))
                             amountText = ""; categoryText = ""; selectedDate = System.currentTimeMillis(); errorMessage = null
-                        } else { errorMessage = "Invalid input" }
+                        }
                     }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) { Text("Save Transaction") }
                 }
             }
@@ -250,95 +258,82 @@ fun TransactionScreen() {
             Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(vertical = 8.dp)) {
                 OutlinedTextField(value = searchQuery, onValueChange = { searchQuery = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Search transactions...") }, leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }, singleLine = true, shape = MaterialTheme.shapes.medium)
                 Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("ALL", "INCOME", "EXPENSE").forEach { type ->
-                        FilterChip(selected = selectedTypeFilter == type, onClick = { selectedTypeFilter = type }, label = { Text(type) }, leadingIcon = if (selectedTypeFilter == type) { { Icon(Icons.Default.Done, null, modifier = Modifier.size(FilterChipDefaults.IconSize)) } } else null)
-                    }
+                    listOf("ALL", "INCOME", "EXPENSE").forEach { type -> FilterChip(selected = selectedTypeFilter == type, onClick = { selectedTypeFilter = type }, label = { Text(type) }, leadingIcon = if (selectedTypeFilter == type) { { Icon(Icons.Default.Done, null, modifier = Modifier.size(FilterChipDefaults.IconSize)) } } else null) }
                 }
                 Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    categories.forEach { category ->
-                        FilterChip(selected = selectedCategoryFilter == category, onClick = { selectedCategoryFilter = if (selectedCategoryFilter == category) "ALL" else category }, label = { Text(category) }, leadingIcon = if (selectedCategoryFilter == category) { { Icon(imageVector = Icons.Default.Done, null, modifier = Modifier.size(FilterChipDefaults.IconSize)) } } else null)
-                    }
+                    categories.forEach { category -> FilterChip(selected = selectedCategoryFilter == category, onClick = { selectedCategoryFilter = if (selectedCategoryFilter == category) "ALL" else category }, label = { Text(category) }, leadingIcon = if (selectedCategoryFilter == category) { { Icon(imageVector = Icons.Default.Done, null, modifier = Modifier.size(FilterChipDefaults.IconSize)) } } else null) }
                 }
                 HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
             }
         }
 
         if (groupedTransactions.isEmpty()) {
-            item {
-                Column(modifier = Modifier.fillMaxWidth().padding(top = 64.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.SearchOff, null, modifier = Modifier.size(80.dp), tint = Color.Gray)
-                    Text(text = "No transactions found", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.DarkGray)
-                    Text(text = "Try changing filters or add a new transaction", fontSize = 14.sp, color = Color.Gray, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 32.dp))
-                }
-            }
+            item { Column(modifier = Modifier.fillMaxWidth().padding(top = 64.dp), horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.SearchOff, null, modifier = Modifier.size(80.dp), tint = Color.Gray); Text("No transactions found", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.DarkGray); Text("Try changing filters or add a new transaction", fontSize = 14.sp, color = Color.Gray, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 32.dp)) } }
         } else {
             groupedTransactions.forEach { (startOfDayTimestamp, transactionsForDate) ->
-                stickyHeader {
-                    Text(text = formatHeaderDate(startOfDayTimestamp), modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 16.dp, vertical = 6.dp), fontWeight = FontWeight.Medium, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                items(items = transactionsForDate, key = { it.id }) { tx ->
-                    TransactionItem(transaction = tx, onDelete = { viewModel.deleteTransaction(tx) }, onClick = { editingTransaction = tx })
-                }
+                stickyHeader { Text(text = formatHeaderDate(startOfDayTimestamp), modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 16.dp, vertical = 6.dp), fontWeight = FontWeight.Medium, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                items(items = transactionsForDate, key = { it.id }) { tx -> TransactionItem(transaction = tx, onDelete = { viewModel.deleteTransaction(tx) }, onClick = { editingTransaction = tx }) }
             }
         }
     }
 }
 
 /**
- * Dialog for pasting and parsing Email/SMS content.
+ * Reusable Card for Smart Insights.
  */
+@Composable
+fun SmartInsightsCard(insights: List<SmartInsight>) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(2.dp),
+        border = CardDefaults.outlinedCardBorder()
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Color(0xFFFFB300), modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Smart Insights", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            }
+            insights.forEach { insight ->
+                InsightRow(insight)
+            }
+        }
+    }
+}
+
+/**
+ * Single Row for an Insight.
+ */
+@Composable
+fun InsightRow(insight: SmartInsight) {
+    val (icon, color) = when (insight.type) {
+        "WARNING" -> Icons.Default.Warning to MaterialTheme.colorScheme.error
+        "POSITIVE" -> Icons.Default.CheckCircle to Color(0xFF2E7D32)
+        else -> Icons.Default.Info to MaterialTheme.colorScheme.onSurface
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = color.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text(insight.title, fontSize = 12.sp, color = Color.Gray)
+            Text(insight.value, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = color)
+        }
+    }
+}
+
 @Composable
 fun EmailParserDialog(onDismiss: () -> Unit, onTransactionParsed: (ParsedTransaction) -> Unit) {
     var rawText by remember { mutableStateOf("") }
     var result by remember { mutableStateOf<ParsedTransaction?>(null) }
     var hasAttemptedParse by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Paste Email / SMS Content") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = rawText,
-                    onValueChange = { rawText = it; hasAttemptedParse = false },
-                    modifier = Modifier.fillMaxWidth().height(120.dp),
-                    placeholder = { Text("e.g. Your A/c XX1234 debited for ₹500 at Uber...") }
-                )
-                
-                Button(
-                    onClick = { 
-                        result = EmailParser.parseEmail(rawText)
-                        hasAttemptedParse = true
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Scan Content") }
-
-                if (result != null) {
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
-                        Column(Modifier.padding(12.dp).fillMaxWidth()) {
-                            Text("Transaction Found!", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            Text("Amount: ₹${result!!.amount}")
-                            Text("Type: ${result!!.type}")
-                            Text("Merchant: ${result!!.merchant ?: "Unknown"}")
-                        }
-                    }
-                } else if (hasAttemptedParse) {
-                    Text("No transaction detected. Check text and try again.", color = Color.Red, fontSize = 12.sp)
-                }
-            }
-        },
-        confirmButton = {
-            if (result != null) {
-                Button(onClick = { onTransactionParsed(result!!) }) { Text("Add to List") }
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Paste Email / SMS Content") }, text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { OutlinedTextField(value = rawText, onValueChange = { rawText = it; hasAttemptedParse = false }, modifier = Modifier.fillMaxWidth().height(120.dp), placeholder = { Text("e.g. Your A/c XX1234 debited for ₹500...") }); Button(onClick = { result = EmailParser.parseEmail(rawText); hasAttemptedParse = true }, modifier = Modifier.fillMaxWidth()) { Text("Scan Content") }; if (result != null) { Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) { Column(Modifier.padding(12.dp).fillMaxWidth()) { Text("Transaction Found!", fontWeight = FontWeight.Bold, fontSize = 14.sp); Text("Amount: ₹${result!!.amount}"); Text("Type: ${result!!.type}"); Text("Merchant: ${result!!.merchant ?: "Unknown"}") } } } else if (hasAttemptedParse) { Text("No transaction detected.", color = Color.Red, fontSize = 12.sp) } } }, confirmButton = { if (result != null) { Button(onClick = { onTransactionParsed(result!!) }) { Text("Add to List") } } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
 }
 
-/**
- * Monthly Analytics Card using Canvas (Preserved logic)
- */
 @Composable
 fun AnalyticsCard(data: List<MonthlyAnalytics>) {
     if (data.isEmpty()) return
@@ -347,28 +342,12 @@ fun AnalyticsCard(data: List<MonthlyAnalytics>) {
             Text(text = "Monthly Analytics", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(16.dp))
             val maxVal = (data.maxOfOrNull { maxOf(it.income, it.expense) } ?: 100f).coerceAtLeast(100f)
-            Box(modifier = Modifier.fillMaxWidth().height(150.dp)) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val barWidth = 16.dp.toPx()
-                    val groupWidth = 2 * barWidth
-                    val spacing = (size.width - (data.size * groupWidth)) / (data.size + 1)
-                    data.forEachIndexed { i, item ->
-                        val xBase = spacing + i * (groupWidth + spacing)
-                        drawRect(color = Color(0xFF4CAF50), topLeft = Offset(xBase, size.height - (item.income / maxVal) * size.height), size = Size(barWidth, (item.income / maxVal) * size.height))
-                        drawRect(color = Color(0xFFF44336), topLeft = Offset(xBase + barWidth, size.height - (item.expense / maxVal) * size.height), size = Size(barWidth, (item.expense / maxVal) * size.height))
-                    }
-                }
-            }
-            Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceAround) {
-                data.forEach { Text(it.label, fontSize = 10.sp, color = Color.Gray, modifier = Modifier.weight(1f), textAlign = TextAlign.Center) }
-            }
+            Box(modifier = Modifier.fillMaxWidth().height(150.dp)) { Canvas(modifier = Modifier.fillMaxSize()) { val barWidth = 16.dp.toPx(); val groupWidth = 2 * barWidth; val spacing = (size.width - (data.size * groupWidth)) / (data.size + 1); data.forEachIndexed { i, item -> val xBase = spacing + i * (groupWidth + spacing); drawRect(color = Color(0xFF4CAF50), topLeft = Offset(xBase, size.height - (item.income / maxVal) * size.height), size = Size(barWidth, (item.income / maxVal) * size.height)); drawRect(color = Color(0xFFF44336), topLeft = Offset(xBase + barWidth, size.height - (item.expense / maxVal) * size.height), size = Size(barWidth, (item.expense / maxVal) * size.height)) } } }
+            Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceAround) { data.forEach { Text(it.label, fontSize = 10.sp, color = Color.Gray, modifier = Modifier.weight(1f), textAlign = TextAlign.Center) } }
         }
     }
 }
 
-/**
- * Edit Dialog and Transaction Item (Preserved logic)
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditTransactionDialog(transaction: TransactionEntity, onDismiss: () -> Unit, onSave: (TransactionEntity) -> Unit) {
@@ -377,10 +356,7 @@ fun EditTransactionDialog(transaction: TransactionEntity, onDismiss: () -> Unit,
     var selectedType by remember { mutableStateOf(transaction.type) }
     var selectedDate by remember { mutableStateOf(transaction.timestamp) }
     var showDatePicker by remember { mutableStateOf(false) }
-    if (showDatePicker) {
-        val state = rememberDatePickerState(initialSelectedDateMillis = selectedDate)
-        DatePickerDialog(onDismissRequest = { showDatePicker = false }, confirmButton = { TextButton(onClick = { selectedDate = state.selectedDateMillis ?: transaction.timestamp; showDatePicker = false }) { Text("OK") } }) { DatePicker(state) }
-    }
+    if (showDatePicker) { val state = rememberDatePickerState(initialSelectedDateMillis = selectedDate); DatePickerDialog(onDismissRequest = { showDatePicker = false }, confirmButton = { TextButton(onClick = { selectedDate = state.selectedDateMillis ?: transaction.timestamp; showDatePicker = false }) { Text("OK") } }) { DatePicker(state) } }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Edit Transaction") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(value = amountText, onValueChange = { amountText = it }, label = { Text("Amount") }, modifier = Modifier.fillMaxWidth())
@@ -396,43 +372,20 @@ fun EditTransactionDialog(transaction: TransactionEntity, onDismiss: () -> Unit,
 
 @Composable
 fun TransactionItem(transaction: TransactionEntity, onDelete: () -> Unit, onClick: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable { onClick() }, elevation = CardDefaults.cardElevation(2.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(transaction.category, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
-                Text("${transaction.type} • ${SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(transaction.timestamp))}", color = if (transaction.type == "INCOME") Color(0xFF4CAF50) else Color(0xFFF44336), fontSize = 12.sp)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("₹%.2f".format(transaction.amount), fontWeight = FontWeight.Bold, fontSize = 20.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 8.dp))
-                IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFB71C1C)) }
-            }
-        }
-    }
+    Card(modifier = Modifier.fillMaxWidth().clickable { onClick() }, elevation = CardDefaults.cardElevation(2.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) { Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Column(modifier = Modifier.weight(1f)) { Text(transaction.category, fontWeight = FontWeight.SemiBold, fontSize = 18.sp); Text("${transaction.type} • ${SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(transaction.timestamp))}", color = if (transaction.type == "INCOME") Color(0xFF4CAF50) else Color(0xFFF44336), fontSize = 12.sp) }; Row(verticalAlignment = Alignment.CenterVertically) { Text("₹%.2f".format(transaction.amount), fontWeight = FontWeight.Bold, fontSize = 20.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 8.dp)); IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFB71C1C)) } } } }
 }
 
 @Composable
 fun SummaryItem(label: String, value: String, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, fontSize = 12.sp, color = Color.DarkGray)
-        Text(value, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = color)
-    }
+    Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(label, fontSize = 12.sp, color = Color.DarkGray); Text(value, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = color) }
 }
 
 private fun startOfDay(timestamp: Long): Long {
-    val cal = Calendar.getInstance()
-    cal.timeInMillis = timestamp
-    cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
-    return cal.timeInMillis
+    val cal = Calendar.getInstance(); cal.timeInMillis = timestamp; cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0); return cal.timeInMillis
 }
 
 private fun formatHeaderDate(startOfDayTimestamp: Long): String {
-    val today = startOfDay(System.currentTimeMillis())
-    val yesterday = today - (24 * 60 * 60 * 1000)
-    return when (startOfDayTimestamp) {
-        today -> "Today"
-        yesterday -> "Yesterday"
-        else -> SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(startOfDayTimestamp))
-    }
+    val today = startOfDay(System.currentTimeMillis()); val yesterday = today - (24 * 60 * 60 * 1000); return when (startOfDayTimestamp) { today -> "Today"; yesterday -> "Yesterday"; else -> SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(startOfDayTimestamp)) }
 }
 
 data class MonthlyAnalytics(val label: String, val income: Float, val expense: Float)

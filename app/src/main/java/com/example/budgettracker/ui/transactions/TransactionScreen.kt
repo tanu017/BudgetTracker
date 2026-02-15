@@ -11,6 +11,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
@@ -36,8 +37,7 @@ import java.util.*
 
 /**
  * Transaction Screen built with Jetpack Compose.
- * Features Filters, Summary Card, Add Form, and a list with Edit/Delete functionality.
- * This version uses a single LazyColumn for professional, smooth scrolling.
+ * Features Search, Filters, Summary Card, Add Form, and a list with Edit/Delete functionality.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,9 +59,10 @@ fun TransactionScreen() {
 
     val transactions by viewModel.allTransactions.observeAsState(initial = emptyList())
 
-    // --- FILTER STATE ---
+    // --- FILTER & SEARCH STATE ---
     var selectedTypeFilter by remember { mutableStateOf("ALL") }
     var selectedCategoryFilter by remember { mutableStateOf("ALL") }
+    var searchQuery by remember { mutableStateOf("") }
 
     // --- FORM STATE ---
     var amountText by remember { mutableStateOf("") }
@@ -74,16 +75,17 @@ fun TransactionScreen() {
     // --- EDIT STATE ---
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
 
-    // --- FILTERING LOGIC ---
+    // --- FILTERING & SEARCH LOGIC ---
     val categories = remember(transactions) {
         listOf("ALL") + transactions.map { it.category }.distinct().sorted()
     }
 
-    val filteredTransactions = remember(transactions, selectedTypeFilter, selectedCategoryFilter) {
+    val filteredTransactions = remember(transactions, selectedTypeFilter, selectedCategoryFilter, searchQuery) {
         transactions.filter { tx ->
             val matchesType = if (selectedTypeFilter == "ALL") true else tx.type == selectedTypeFilter
             val matchesCategory = if (selectedCategoryFilter == "ALL") true else tx.category == selectedCategoryFilter
-            matchesType && matchesCategory
+            val matchesSearch = tx.category.contains(searchQuery, ignoreCase = true)
+            matchesType && matchesCategory && matchesSearch
         }
     }
 
@@ -249,7 +251,22 @@ fun TransactionScreen() {
             }
         }
 
-        // 4. FILTERS SECTION
+        // 4. SEARCH BAR
+        item {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                placeholder = { Text("Search transactions...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                singleLine = true,
+                shape = MaterialTheme.shapes.medium
+            )
+        }
+
+        // 5. FILTERS SECTION
         item {
             Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                 Text(text = "Filters", fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -288,7 +305,7 @@ fun TransactionScreen() {
             }
         }
 
-        // 5. TRANSACTION LIST ITEMS
+        // 6. TRANSACTION LIST ITEMS
         items(
             items = filteredTransactions,
             key = { it.id }

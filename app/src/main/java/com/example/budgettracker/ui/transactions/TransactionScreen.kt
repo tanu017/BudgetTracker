@@ -1,5 +1,7 @@
 package com.example.budgettracker.ui.transactions
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -12,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
@@ -21,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -39,7 +43,7 @@ import java.util.*
  * Transaction Screen built with Jetpack Compose.
  * Features Search, Filters, Summary Card, Add Form, and a list with Edit/Delete functionality.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun TransactionScreen() {
     val context = LocalContext.current
@@ -251,28 +255,33 @@ fun TransactionScreen() {
             }
         }
 
-        // 4. SEARCH BAR
-        item {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
+        // 4. STICKY HEADER FOR SEARCH + FILTERS
+        stickyHeader {
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp),
-                placeholder = { Text("Search transactions...") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                singleLine = true,
-                shape = MaterialTheme.shapes.medium
-            )
-        }
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(vertical = 8.dp)
+            ) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Search transactions...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    singleLine = true,
+                    shape = MaterialTheme.shapes.medium,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                    )
+                )
 
-        // 5. FILTERS SECTION
-        item {
-            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                Text(text = "Filters", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                
                 Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     listOf("ALL", "INCOME", "EXPENSE").forEach { type ->
@@ -288,7 +297,10 @@ fun TransactionScreen() {
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 4.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp)
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     categories.forEach { category ->
@@ -302,25 +314,60 @@ fun TransactionScreen() {
                         )
                     }
                 }
+                
+                HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
             }
         }
 
-        // 6. TRANSACTION LIST ITEMS
-        items(
-            items = filteredTransactions,
-            key = { it.id }
-        ) { transaction ->
-            TransactionItem(
-                transaction = transaction,
-                onDelete = { viewModel.deleteTransaction(transaction) },
-                onClick = { editingTransaction = transaction }
-            )
+        // 5. TRANSACTION LIST ITEMS OR EMPTY STATE
+        if (filteredTransactions.isEmpty()) {
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 64.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.SearchOff,
+                        contentDescription = null,
+                        modifier = Modifier.size(80.dp),
+                        tint = Color.Gray
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "No transactions found",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.DarkGray
+                    )
+                    Text(
+                        text = "Try changing filters or add a new transaction",
+                        fontSize = 14.sp,
+                        color = Color.Gray,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 32.dp)
+                    )
+                }
+            }
+        } else {
+            items(
+                items = filteredTransactions,
+                key = { it.id }
+            ) { transaction ->
+                TransactionItem(
+                    transaction = transaction,
+                    onDelete = { viewModel.deleteTransaction(transaction) },
+                    onClick = { editingTransaction = transaction }
+                )
+            }
         }
     }
 }
 
 /**
- * Edit Dialog and Helper Components (Preserved)
+ * Dialog for editing an existing transaction (Preserved)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

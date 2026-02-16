@@ -12,6 +12,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.budgettracker.R
+import com.example.budgettracker.ui.home.components.HeroBalanceCard
 import com.example.budgettracker.ui.home.components.HomeTransactionPreviewItem
 import com.example.budgettracker.ui.transactions.components.*
 import com.example.budgettracker.ui.transactions.engine.*
@@ -20,17 +21,23 @@ import com.example.budgettracker.ui.transactions.model.MonthlyAnalytics
 import java.text.SimpleDateFormat
 import java.util.*
 
+/**
+ * Home Screen - The financial command center of FinFlow.
+ * Displays a hero KPI card, smart insights, and monthly trends.
+ */
 @Composable
 fun HomeScreen(viewModel: DashboardViewModel) {
     val transactions by viewModel.allTransactions.observeAsState(initial = emptyList())
     val accounts by viewModel.allAccounts.observeAsState(initial = emptyList())
 
+    // Engine Delegations
     val insights = remember(transactions) { InsightsEngine.calculate(transactions) }
     val healthMetrics = remember(transactions) { BudgetHealthEngine.compute(transactions) }
 
     val totalIncome = transactions.filter { it.type == "INCOME" }.sumOf { it.amount }
     val totalExpense = transactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
-    val balance = totalIncome - totalExpense
+    val totalBalance = accounts.sumOf { it.balance }
+    val savingsRate = (healthMetrics.savingsRatio * 100).toInt()
 
     val monthlyData = remember(transactions) {
         val sdf = SimpleDateFormat("MM-yyyy", Locale.getDefault())
@@ -51,41 +58,60 @@ fun HomeScreen(viewModel: DashboardViewModel) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)
+        verticalArrangement = Arrangement.spacedBy(24.dp), // Increased spacing for breathability
+        contentPadding = PaddingValues(top = 24.dp, bottom = 32.dp)
     ) {
+        // Branding Section
         item {
-            Text(
-                text = stringResource(R.string.financial_overview),
-                fontSize = 26.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.primary
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = stringResource(R.string.app_branding),
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 1.sp
+                    ),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = stringResource(R.string.financial_overview),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+        }
+
+        // Hero KPI Section
+        item {
+            HeroBalanceCard(
+                totalBalance = totalBalance,
+                income = totalIncome,
+                expense = totalExpense,
+                savingsRate = savingsRate
             )
         }
 
+        // Insight & Health Section
         item {
-            SummaryCard(
-                totalIncome = totalIncome,
-                totalExpense = totalExpense,
-                balance = balance
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                SmartInsightsCard(insights = insights)
+                HealthInsightsChips(metrics = healthMetrics)
+            }
         }
 
-        item { SmartInsightsCard(insights = insights) }
+        // Visual Analytics Section
+        item {
+            AnalyticsCard(data = monthlyData)
+        }
 
-        item { HealthInsightsChips(metrics = healthMetrics) }
-
-        item { AnalyticsCard(data = monthlyData) }
-
+        // Recent Activity Preview
         item {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = stringResource(R.string.recent_transactions),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    modifier = Modifier.padding(bottom = 12.dp)
                 )
-                // Fintech-style read-only preview for the Home screen
                 transactions.take(3).forEach { tx ->
                     HomeTransactionPreviewItem(transaction = tx)
                     Spacer(Modifier.height(8.dp))

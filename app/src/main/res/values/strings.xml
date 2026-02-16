@@ -1,10 +1,10 @@
 <resources>
-    <string name="app_name">BudgetTracker</string>
+    <string name="app_name">FinFlow</string>
     <string name="title_home">Home</string>
     <string name="title_transactions">Transactions</string>
     <string name="title_accounts">Accounts</string>
     <string name="title_dashboard">Dashboard</string>
-    <string name="app_branding">Budget Tracker</string>
+    <string name="app_branding">FinFlow</string>
     <string name="total_balance">Total Balance</string>
     <string name="income">Income</string>
     <string name="expense">Expense</string>
@@ -20,5 +20,6 @@
     <string name="paste_email_sms">Paste Email / SMS</string>
     <string name="financial_overview">Financial Overview</string>
     <string name="spending_ratio">Spending Ratio</string>
+    <string name="savings_rate">Savings</string>
     <string name="no_records_found">No records found</string>
 </resources>

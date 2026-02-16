@@ -1,35 +1,35 @@
 package com.example.budgettracker.ui.transactions
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.budgettracker.R
 import com.example.budgettracker.data.local.AppDatabase
 import com.example.budgettracker.repository.*
 import com.example.budgettracker.viewmodel.*
 import com.example.budgettracker.ui.transactions.components.*
-import com.example.budgettracker.ui.transactions.engine.*
 import com.example.budgettracker.ui.transactions.utils.TransactionDateUtils
-import com.example.budgettracker.ui.transactions.model.MonthlyAnalytics
 import com.example.budgettracker.parser.toTransactionEntity
-import java.text.SimpleDateFormat
-import java.util.*
 
 /**
  * Transaction Screen built with Jetpack Compose.
- * This file now serves as the orchestrator, with logic and components moved to dedicated files.
+ * Acts as an orchestrator for transaction management.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -48,49 +48,23 @@ fun TransactionScreen() {
 
     val transactions by viewModel.allTransactions.observeAsState(initial = emptyList())
 
-    // Business Logic Delegation to Engines
-    val insights = remember(transactions) { InsightsEngine.calculate(transactions) }
-    val healthMetrics = remember(transactions) { BudgetHealthEngine.compute(transactions) }
-
-    // --- ANALYTICS LOGIC ---
-    val monthlyData = remember(transactions) {
-        val sdf = SimpleDateFormat("MM-yyyy", Locale.getDefault())
-        val labelSdf = SimpleDateFormat("MMM", Locale.getDefault())
-        val calendar = Calendar.getInstance()
-        val data = mutableListOf<MonthlyAnalytics>()
-        
-        for (i in 5 downTo 0) {
-            calendar.time = Date()
-            calendar.add(Calendar.MONTH, -i)
-            val monthYearKey = sdf.format(calendar.time)
-            val monthLabel = labelSdf.format(calendar.time)
-            
-            val monthTransactions = transactions.filter { tx ->
-                sdf.format(Date(tx.timestamp)) == monthYearKey
-            }
-            
-            data.add(MonthlyAnalytics(
-                label = monthLabel,
-                income = monthTransactions.filter { it.type == "INCOME" }.sumOf { it.amount }.toFloat(),
-                expense = monthTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }.toFloat()
-            ))
-        }
-        data
-    }
-
-    // UI State for Filters and Dialogs
+    // --- UI State ---
     var selectedTypeFilter by remember { mutableStateOf("ALL") }
     var selectedCategoryFilter by remember { mutableStateOf("ALL") }
     var searchQuery by remember { mutableStateOf("") }
     var showEmailParserDialog by remember { mutableStateOf(false) }
     var editingTransaction by remember { mutableStateOf<com.example.budgettracker.data.local.entities.TransactionEntity?>(null) }
 
-    // Aggregate Dynamic Data
+    // FIXED: mutableStateMapOf is not supported by rememberSaveable and causes a runtime crash.
+    // Replaced with a Set of timestamps for collapsed sections.
+    var collapsedSections by rememberSaveable { mutableStateOf(setOf<Long>()) }
+
+    // Aggregate Dynamic Data for Filters
     val categories = remember(transactions) {
         listOf("ALL") + transactions.map { it.category }.distinct().sorted()
     }
 
-    val filteredTransactions = remember(transactions, selectedTypeFilter, selectedCategoryFilter, searchQuery) {
+    val filteredGroupedTransactions = remember(transactions, selectedTypeFilter, selectedCategoryFilter, searchQuery) {
         transactions
             .filter { tx ->
                 val matchesType = if (selectedTypeFilter == "ALL") true else tx.type == selectedTypeFilter
@@ -102,11 +76,7 @@ fun TransactionScreen() {
             .groupBy { TransactionDateUtils.startOfDay(it.timestamp) }
     }
 
-    val totalIncome = transactions.filter { it.type == "INCOME" }.sumOf { it.amount }
-    val totalExpense = transactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
-    val balance = totalIncome - totalExpense
-
-    // Dialogs Management
+    // Dialogs
     if (showEmailParserDialog) {
         EmailParserDialog(
             onDismiss = { showEmailParserDialog = false },
@@ -128,7 +98,6 @@ fun TransactionScreen() {
         )
     }
 
-    // --- MAIN UI LAYOUT ---
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -139,7 +108,7 @@ fun TransactionScreen() {
     ) {
         item {
             Text(
-                text = "Budget Tracker",
+                text = stringResource(R.string.title_transactions),
                 fontSize = 26.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.primary,
@@ -147,27 +116,21 @@ fun TransactionScreen() {
             )
         }
 
+        // Add Transaction Form (End-to-End implementation)
         item {
-            SummaryCard(
-                totalIncome = totalIncome,
-                totalExpense = totalExpense,
-                balance = balance
+            AddTransactionForm(
+                onSave = { viewModel.insertTransaction(it) }
             )
         }
 
-        item { SmartInsightsCard(insights = insights) }
-
-        item { HealthInsightsChips(metrics = healthMetrics) }
-
+        // Email Parser Entry Button
         item {
             TransactionActionRow(
                 onPasteClick = { showEmailParserDialog = true }
             )
         }
 
-        // Analytics Card
-        item { AnalyticsCard(monthlyData) }
-
+        // Sticky Search and Filters
         stickyHeader {
             TransactionFilterHeader(
                 searchQuery = searchQuery,
@@ -180,19 +143,35 @@ fun TransactionScreen() {
             )
         }
 
-        if (filteredTransactions.isEmpty()) {
+        if (filteredGroupedTransactions.isEmpty()) {
             item { EmptyTransactionsState() }
         } else {
-            filteredTransactions.forEach { (date, itemsForDate) ->
+            filteredGroupedTransactions.forEach { (date, itemsForDate) ->
+                val isCollapsed = collapsedSections.contains(date)
+                
                 stickyHeader {
-                    DateHeader(date = TransactionDateUtils.formatHeaderDate(date))
+                    Surface(
+                        modifier = Modifier.clickable { 
+                            collapsedSections = if (isCollapsed) {
+                                collapsedSections - date
+                            } else {
+                                collapsedSections + date
+                            }
+                        },
+                        color = MaterialTheme.colorScheme.surface
+                    ) {
+                        DateHeader(date = TransactionDateUtils.formatHeaderDate(date))
+                    }
                 }
+
                 items(items = itemsForDate, key = { it.id }) { tx ->
-                    TransactionItem(
-                        transaction = tx,
-                        onDelete = { viewModel.deleteTransaction(tx) },
-                        onClick = { editingTransaction = tx }
-                    )
+                    AnimatedVisibility(visible = !isCollapsed) {
+                        TransactionItem(
+                            transaction = tx,
+                            onDelete = { viewModel.deleteTransaction(tx) },
+                            onClick = { editingTransaction = tx }
+                        )
+                    }
                 }
             }
         }

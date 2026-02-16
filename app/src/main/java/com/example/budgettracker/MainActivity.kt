@@ -6,11 +6,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -26,6 +28,7 @@ import com.example.budgettracker.repository.ReminderRepository
 import com.example.budgettracker.repository.TransactionRepository
 import com.example.budgettracker.ui.accounts.AccountsFragment
 import com.example.budgettracker.ui.dashboard.DashboardFragment
+import com.example.budgettracker.ui.home.HomeScreen
 import com.example.budgettracker.ui.security.AppLockGate
 import com.example.budgettracker.ui.transactions.TransactionScreen
 import com.example.budgettracker.viewmodel.BudgetViewModelFactory
@@ -42,10 +45,11 @@ class MainActivity : FragmentActivity() {
     }
 }
 
-sealed class Screen(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    object Transactions : Screen("transactions", "Transactions", Icons.Default.List)
-    object Accounts : Screen("accounts", "Accounts", Icons.Default.AccountBalance)
-    object Dashboard : Screen("dashboard", "Dashboard", Icons.Default.Dashboard)
+sealed class Screen(val route: String, val labelId: Int, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    object Home : Screen("home", R.string.title_home, Icons.Default.Home)
+    object Transactions : Screen("transactions", R.string.title_transactions, Icons.Default.List)
+    object Accounts : Screen("accounts", R.string.title_accounts, Icons.Default.AccountBalance)
+    object Dashboard : Screen("dashboard", R.string.title_dashboard, Icons.Default.Dashboard)
 }
 
 @Composable
@@ -53,20 +57,17 @@ fun BudgetTrackerApp() {
     val context = LocalContext.current
     val database = remember { AppDatabase.getDatabase(context) }
     
-    // Create Repositories once
     val transactionRepo = remember { TransactionRepository(database.transactionDao()) }
     val accountRepo = remember { AccountRepository(database.accountDao()) }
     val categoryRepo = remember { CategoryRepository(database.categoryDao()) }
     val reminderRepo = remember { ReminderRepository(database.reminderDao()) }
 
-    // Create Shared Factory
     val factory = BudgetViewModelFactory(transactionRepo, accountRepo, categoryRepo, reminderRepo)
-
-    // Create DashboardViewModel here (Shared/Parent Level)
     val dashboardViewModel: DashboardViewModel = viewModel(factory = factory)
 
     val navController = rememberNavController()
     val items = listOf(
+        Screen.Home,
         Screen.Transactions,
         Screen.Accounts,
         Screen.Dashboard
@@ -80,7 +81,7 @@ fun BudgetTrackerApp() {
                 items.forEach { screen ->
                     NavigationBarItem(
                         icon = { Icon(screen.icon, contentDescription = null) },
-                        label = { Text(screen.label) },
+                        label = { Text(stringResource(screen.labelId)) },
                         selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
                         onClick = {
                             navController.navigate(screen.route) {
@@ -98,14 +99,13 @@ fun BudgetTrackerApp() {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Transactions.route,
+            startDestination = Screen.Home.route,
             modifier = Modifier.padding(innerPadding)
         ) {
+            composable(Screen.Home.route) { HomeScreen(viewModel = dashboardViewModel) }
             composable(Screen.Transactions.route) { TransactionScreen() }
             composable(Screen.Accounts.route) { AccountsFragment() }
-            composable(Screen.Dashboard.route) { 
-                DashboardFragment(viewModel = dashboardViewModel) 
-            }
+            composable(Screen.Dashboard.route) { DashboardFragment(viewModel = dashboardViewModel) }
         }
     }
 }

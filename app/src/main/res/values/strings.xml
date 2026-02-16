@@ -1,3 +1,24 @@
 <resources>
     <string name="app_name">BudgetTracker</string>
+    <string name="title_home">Home</string>
+    <string name="title_transactions">Transactions</string>
+    <string name="title_accounts">Accounts</string>
+    <string name="title_dashboard">Dashboard</string>
+    <string name="app_branding">Budget Tracker</string>
+    <string name="total_balance">Total Balance</string>
+    <string name="income">Income</string>
+    <string name="expense">Expense</string>
+    <string name="balance">Balance</string>
+    <string name="smart_insights">Smart Insights</string>
+    <string name="monthly_analytics">Monthly Analytics</string>
+    <string name="recent_transactions">Recent Transactions</string>
+    <string name="add_new_record">Add New Record</string>
+    <string name="save_transaction">Save Transaction</string>
+    <string name="search_placeholder">Search transactions...</string>
+    <string name="no_transactions_found">No transactions found</string>
+    <string name="empty_state_subtext">Try changing filters or add a new transaction</string>
+    <string name="paste_email_sms">Paste Email / SMS</string>
+    <string name="financial_overview">Financial Overview</string>
+    <string name="spending_ratio">Spending Ratio</string>
+    <string name="no_records_found">No records found</string>
 </resources>

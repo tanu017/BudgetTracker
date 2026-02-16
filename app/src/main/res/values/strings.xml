@@ -20,6 +20,9 @@
     <string name="paste_email_sms">Paste Email / SMS</string>
     <string name="financial_overview">Financial Overview</string>
     <string name="spending_ratio">Spending Ratio</string>
-    <string name="savings_rate">Savings</string>
+    <string name="savings_rate">Savings Rate</string>
     <string name="no_records_found">No records found</string>
+    <string name="unlock_app">Unlock FinFlow</string>
+    <string name="data_protected">Your data is protected</string>
+    <string name="authenticate_subtext">Please authenticate to continue</string>
 </resources>

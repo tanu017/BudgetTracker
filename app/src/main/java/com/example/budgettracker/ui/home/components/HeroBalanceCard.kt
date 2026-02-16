@@ -1,13 +1,10 @@
 package com.example.budgettracker.ui.home.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -16,6 +13,10 @@ import androidx.compose.ui.unit.sp
 import com.example.budgettracker.R
 import com.example.budgettracker.ui.theme.FinanceColors
 
+/**
+ * A high-impact hero card for the Home screen dashboard.
+ * Displays the primary financial KPIs with strong visual hierarchy.
+ */
 @Composable
 fun HeroBalanceCard(
     totalBalance: Double,
@@ -24,8 +25,7 @@ fun HeroBalanceCard(
     savingsRate: Int
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         colors = CardDefaults.cardColors(

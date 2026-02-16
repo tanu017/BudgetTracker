@@ -55,8 +55,7 @@ fun TransactionScreen() {
     var showEmailParserDialog by remember { mutableStateOf(false) }
     var editingTransaction by remember { mutableStateOf<com.example.budgettracker.data.local.entities.TransactionEntity?>(null) }
 
-    // FIXED: mutableStateMapOf is not supported by rememberSaveable and causes a runtime crash.
-    // Replaced with a Set of timestamps for collapsed sections.
+    // Replaced mutableStateMapOf with a Set of timestamps for collapsed sections to prevent runtime crash.
     var collapsedSections by rememberSaveable { mutableStateOf(setOf<Long>()) }
 
     // Aggregate Dynamic Data for Filters
@@ -106,17 +105,7 @@ fun TransactionScreen() {
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)
     ) {
-        item {
-            Text(
-                text = stringResource(R.string.title_transactions),
-                fontSize = 26.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-        }
-
-        // Add Transaction Form (End-to-End implementation)
+        // Form Section
         item {
             AddTransactionForm(
                 onSave = { viewModel.insertTransaction(it) }

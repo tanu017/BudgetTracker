@@ -10,10 +10,12 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.example.budgettracker.R
 import com.example.budgettracker.data.local.entities.TransactionEntity
 import com.example.budgettracker.viewmodel.DashboardViewModel
 import com.github.mikephil.charting.charts.BarChart
@@ -24,8 +26,7 @@ import com.github.mikephil.charting.data.BarEntry
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 
 /**
- * Dashboard Screen with MPAndroidChart for professional analytics.
- * This component now accepts its ViewModel as a parameter, following better architecture practices.
+ * Dashboard Screen - Refocused for professional data analytics without large branded headers.
  */
 @Composable
 fun DashboardFragment(viewModel: DashboardViewModel) {
@@ -33,7 +34,6 @@ fun DashboardFragment(viewModel: DashboardViewModel) {
     val accounts by viewModel.allAccounts.observeAsState(initial = emptyList())
 
     // Data aggregation for Summary
-    val totalBalance = accounts.sumOf { it.balance }
     val totalIncome = transactions.filter { it.type == "INCOME" }.sumOf { it.amount }
     val totalExpense = transactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
 
@@ -52,69 +52,16 @@ fun DashboardFragment(viewModel: DashboardViewModel) {
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
-        Text(
-            text = "Financial Overview",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        // SUMMARY CARD
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(text = "Total Balance", fontSize = 14.sp)
-                Text(
-                    text = "₹%.2f".format(totalBalance),
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.ExtraBold
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    DashboardSummaryMiniItem("Income", "₹%.2f".format(totalIncome), Color(0xFF2E7D32))
-                    DashboardSummaryMiniItem("Expense", "₹%.2f".format(totalExpense), Color(0xFFC62828))
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
         // INCOME vs EXPENSE CHART
-        Text(
-            text = "Income vs Expense",
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.align(Alignment.Start),
-            style = MaterialTheme.typography.titleMedium
-        )
-        AndroidView(
-            factory = { ctx ->
-                BarChart(ctx).apply {
-                    setupChartStyle(this)
-                }
-            },
-            update = { chart ->
-                updateIncomeExpenseChart(chart, totalIncome.toFloat(), totalExpense.toFloat())
-            },
-            modifier = Modifier.fillMaxWidth().height(200.dp)
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // TOP 5 CATEGORIES CHART
-        Text(
-            text = "Top Spending Categories",
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.align(Alignment.Start),
-            style = MaterialTheme.typography.titleMedium
-        )
-        if (expensesByCategory.isNotEmpty()) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = "Income vs Expense",
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleMedium
+            )
             AndroidView(
                 factory = { ctx ->
                     BarChart(ctx).apply {
@@ -122,48 +69,68 @@ fun DashboardFragment(viewModel: DashboardViewModel) {
                     }
                 },
                 update = { chart ->
-                    updateCategoryChart(chart, expensesByCategory)
+                    updateIncomeExpenseChart(chart, totalIncome.toFloat(), totalExpense.toFloat())
                 },
                 modifier = Modifier.fillMaxWidth().height(200.dp)
             )
-        } else {
+        }
+
+        // TOP 5 CATEGORIES CHART
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = "No expenses recorded yet",
-                color = Color.Gray,
-                modifier = Modifier.padding(vertical = 16.dp),
-                fontSize = 12.sp
+                text = "Top Spending Categories",
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleMedium
+            )
+            if (expensesByCategory.isNotEmpty()) {
+                AndroidView(
+                    factory = { ctx ->
+                        BarChart(ctx).apply {
+                            setupChartStyle(this)
+                        }
+                    },
+                    update = { chart ->
+                        updateCategoryChart(chart, expensesByCategory)
+                    },
+                    modifier = Modifier.fillMaxWidth().height(200.dp)
+                )
+            } else {
+                Text(
+                    text = stringResource(R.string.no_records_found),
+                    color = Color.Gray,
+                    modifier = Modifier.padding(vertical = 16.dp),
+                    fontSize = 12.sp
+                )
+            }
+        }
+
+        // SPENDING RATIO
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = stringResource(R.string.spending_ratio),
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleMedium
+            )
+            val spendingRatio = if (totalIncome > 0) (totalExpense / totalIncome).toFloat().coerceIn(0f, 1f) else 0f
+            LinearProgressIndicator(
+                progress = { spendingRatio },
+                modifier = Modifier.fillMaxWidth().height(16.dp),
+                color = if (spendingRatio > 0.8f) Color.Red else MaterialTheme.colorScheme.primary,
+                trackColor = Color.LightGray,
+                strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // SPENDING RATIO
-        Text(
-            text = "Spending Ratio",
-            modifier = Modifier.align(Alignment.Start),
-            fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.titleMedium
-        )
-        val spendingRatio = if (totalIncome > 0) (totalExpense / totalIncome).toFloat().coerceIn(0f, 1f) else 0f
-        LinearProgressIndicator(
-            progress = { spendingRatio },
-            modifier = Modifier.fillMaxWidth().height(16.dp).padding(vertical = 8.dp),
-            color = if (spendingRatio > 0.8f) Color.Red else MaterialTheme.colorScheme.primary,
-            trackColor = Color.LightGray,
-            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
         // RECENT TRANSACTIONS
-        Text(
-            text = "Recent Transactions",
-            modifier = Modifier.align(Alignment.Start),
-            fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.titleMedium
-        )
-        transactions.take(5).forEach { tx ->
-            DashboardRecentTxRow(tx)
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = "Analytics Detail",
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleMedium
+            )
+            transactions.take(5).forEach { tx ->
+                DashboardRecentTxRow(tx)
+            }
         }
     }
 }
@@ -174,8 +141,6 @@ private fun setupChartStyle(chart: BarChart) {
     chart.legend.isEnabled = false
     chart.setDrawGridBackground(false)
     chart.setTouchEnabled(false)
-
-    // ⭐ NEW POLISH
     chart.setFitBars(true)
     chart.animateY(800)
 
@@ -210,7 +175,6 @@ private fun updateIncomeExpenseChart(chart: BarChart, income: Float, expense: Fl
     
     chart.data = BarData(dataSet)
     chart.xAxis.valueFormatter = IndexAxisValueFormatter(listOf("Income", "Expense"))
-    chart.animateY(1000)
     chart.invalidate()
 }
 
@@ -228,16 +192,7 @@ private fun updateCategoryChart(chart: BarChart, categories: List<Pair<String, D
     
     chart.data = BarData(dataSet)
     chart.xAxis.valueFormatter = IndexAxisValueFormatter(categories.map { it.first })
-    chart.animateY(1000)
     chart.invalidate()
-}
-
-@Composable
-fun DashboardSummaryMiniItem(label: String, value: String, color: Color) {
-    Column {
-        Text(text = label, fontSize = 12.sp)
-        Text(text = value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = color)
-    }
 }
 
 @Composable

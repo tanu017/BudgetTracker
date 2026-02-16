@@ -21,6 +21,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.ui.unit.dp
 import com.example.budgettracker.data.local.AppDatabase
 import com.example.budgettracker.repository.AccountRepository
 import com.example.budgettracker.repository.CategoryRepository
@@ -34,10 +35,15 @@ import com.example.budgettracker.ui.transactions.TransactionScreen
 import com.example.budgettracker.viewmodel.BudgetViewModelFactory
 import com.example.budgettracker.viewmodel.DashboardViewModel
 
+/**
+ * MainActivity - Entry point for the FinFlow application.
+ * Configured as a FragmentActivity to support Biometric Authentication.
+ */
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
+            // Secure the entire application behind a biometric gate
             AppLockGate {
                 BudgetTrackerApp()
             }
@@ -45,6 +51,9 @@ class MainActivity : FragmentActivity() {
     }
 }
 
+/**
+ * Navigation destinations for the application.
+ */
 sealed class Screen(val route: String, val labelId: Int, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     object Home : Screen("home", R.string.title_home, Icons.Default.Home)
     object Transactions : Screen("transactions", R.string.title_transactions, Icons.Default.List)
@@ -57,38 +66,43 @@ fun BudgetTrackerApp() {
     val context = LocalContext.current
     val database = remember { AppDatabase.getDatabase(context) }
     
+    // Core Repository layer initialization
     val transactionRepo = remember { TransactionRepository(database.transactionDao()) }
     val accountRepo = remember { AccountRepository(database.accountDao()) }
     val categoryRepo = remember { CategoryRepository(database.categoryDao()) }
     val reminderRepo = remember { ReminderRepository(database.reminderDao()) }
 
+    // Unified ViewModel Factory
     val factory = BudgetViewModelFactory(transactionRepo, accountRepo, categoryRepo, reminderRepo)
+    
+    // Global DashboardViewModel for shared data across tabs
     val dashboardViewModel: DashboardViewModel = viewModel(factory = factory)
 
     val navController = rememberNavController()
-    val items = listOf(
-        Screen.Home,
-        Screen.Transactions,
-        Screen.Accounts,
-        Screen.Dashboard
-    )
+    val navItems = listOf(Screen.Home, Screen.Transactions, Screen.Accounts, Screen.Dashboard)
 
     Scaffold(
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                tonalElevation = 8.dp // Material 3 tonal elevation
+            ) {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentDestination = navBackStackEntry?.destination
-                items.forEach { screen ->
+                
+                navItems.forEach { screen ->
                     NavigationBarItem(
                         icon = { Icon(screen.icon, contentDescription = null) },
                         label = { Text(stringResource(screen.labelId)) },
                         selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
                         onClick = {
                             navController.navigate(screen.route) {
+                                // Pop up to the start destination to avoid building up a large back stack
                                 popUpTo(navController.graph.findStartDestination().id) {
                                     saveState = true
                                 }
+                                // Avoid multiple copies of the same destination when reselecting
                                 launchSingleTop = true
+                                // Restore state when reselecting a previously selected item
                                 restoreState = true
                             }
                         }

@@ -28,8 +28,7 @@ import com.example.budgettracker.viewmodel.AccountsViewModel
 import com.example.budgettracker.viewmodel.BudgetViewModelFactory
 
 /**
- * Accounts Screen built with Jetpack Compose.
- * Manages bank accounts, cash, and total balance views.
+ * Accounts Screen - Refocused for pure account management without large titles.
  */
 @Composable
 fun AccountsFragment() {
@@ -55,94 +54,85 @@ fun AccountsFragment() {
     var initialBalance by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(horizontal = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)
     ) {
-        Text(
-            text = "My Accounts",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 16.dp),
-            color = MaterialTheme.colorScheme.primary
-        )
-
         // --- ADD ACCOUNT FORM ---
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            elevation = CardDefaults.cardElevation(4.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(4.dp)
             ) {
-                Text(text = "Add New Account", fontWeight = FontWeight.Bold)
-
-                OutlinedTextField(
-                    value = accountName,
-                    onValueChange = { accountName = it },
-                    label = { Text("Account Name (e.g. HDFC Bank)") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = initialBalance,
-                    onValueChange = { initialBalance = it },
-                    label = { Text("Initial Balance") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                errorMessage?.let {
-                    Text(text = it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-                }
-
-                Button(
-                    onClick = {
-                        val balance = initialBalance.toDoubleOrNull()
-                        if (accountName.isBlank()) {
-                            errorMessage = "Please enter an account name"
-                        } else if (balance == null) {
-                            errorMessage = "Please enter a valid balance"
-                        } else {
-                            val newAccount = AccountEntity(
-                                accountName = accountName,
-                                balance = balance,
-                                accountType = "BANK" // Defaulting for simplicity
-                            )
-                            viewModel.insertAccount(newAccount)
-                            accountName = ""
-                            initialBalance = ""
-                            errorMessage = null
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Create Account")
+                    Text(text = "Add New Account", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+
+                    OutlinedTextField(
+                        value = accountName,
+                        onValueChange = { accountName = it; errorMessage = null },
+                        label = { Text("Account Name (e.g. HDFC Bank)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = initialBalance,
+                        onValueChange = { initialBalance = it; errorMessage = null },
+                        label = { Text("Initial Balance") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+
+                    errorMessage?.let {
+                        Text(text = it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    }
+
+                    Button(
+                        onClick = {
+                            val balance = initialBalance.toDoubleOrNull()
+                            if (accountName.isBlank()) {
+                                errorMessage = "Please enter an account name"
+                            } else if (balance == null) {
+                                errorMessage = "Please enter a valid balance"
+                            } else {
+                                val newAccount = AccountEntity(
+                                    accountName = accountName,
+                                    balance = balance,
+                                    accountType = "BANK"
+                                )
+                                viewModel.insertAccount(newAccount)
+                                accountName = ""
+                                initialBalance = ""
+                                errorMessage = null
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Create Account")
+                    }
                 }
             }
         }
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        item { HorizontalDivider() }
 
         // --- ACCOUNTS LIST ---
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(
-                items = accounts,
-                key = { it.id }
-            ) { account ->
-                AccountItem(
-                    account = account,
-                    onDelete = { viewModel.deleteAccount(account) }
-                )
-            }
+        items(
+            items = accounts,
+            key = { it.id }
+        ) { account ->
+            AccountItem(
+                account = account,
+                onDelete = { viewModel.deleteAccount(account) }
+            )
         }
     }
 }

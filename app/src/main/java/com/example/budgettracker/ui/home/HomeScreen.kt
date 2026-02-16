@@ -30,7 +30,7 @@ fun HomeScreen(viewModel: DashboardViewModel) {
     val transactions by viewModel.allTransactions.observeAsState(initial = emptyList())
     val accounts by viewModel.allAccounts.observeAsState(initial = emptyList())
 
-    // Engine Delegations
+    // Advanced analysis via Business Engines
     val insights = remember(transactions) { InsightsEngine.calculate(transactions) }
     val healthMetrics = remember(transactions) { BudgetHealthEngine.compute(transactions) }
 
@@ -39,18 +39,28 @@ fun HomeScreen(viewModel: DashboardViewModel) {
     val totalBalance = accounts.sumOf { it.balance }
     val savingsRate = (healthMetrics.savingsRatio * 100).toInt()
 
+    // Monthly Trend Calculation
     val monthlyData = remember(transactions) {
         val sdf = SimpleDateFormat("MM-yyyy", Locale.getDefault())
         val labelSdf = SimpleDateFormat("MMM", Locale.getDefault())
         val calendar = Calendar.getInstance()
         val data = mutableListOf<MonthlyAnalytics>()
+        
         for (i in 5 downTo 0) {
             calendar.time = Date()
             calendar.add(Calendar.MONTH, -i)
             val monthYearKey = sdf.format(calendar.time)
             val monthLabel = labelSdf.format(calendar.time)
-            val monthTransactions = transactions.filter { sdf.format(Date(it.timestamp)) == monthYearKey }
-            data.add(MonthlyAnalytics(label = monthLabel, income = monthTransactions.filter { it.type == "INCOME" }.sumOf { it.amount }.toFloat(), expense = monthTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }.toFloat()))
+            
+            val monthTransactions = transactions.filter { 
+                sdf.format(Date(it.timestamp)) == monthYearKey 
+            }
+            
+            data.add(MonthlyAnalytics(
+                label = monthLabel, 
+                income = monthTransactions.filter { it.type == "INCOME" }.sumOf { it.amount }.toFloat(), 
+                expense = monthTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }.toFloat()
+            ))
         }
         data
     }
@@ -58,10 +68,10 @@ fun HomeScreen(viewModel: DashboardViewModel) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(24.dp), // Increased spacing for breathability
+        verticalArrangement = Arrangement.spacedBy(24.dp), // Premium Section Spacing
         contentPadding = PaddingValues(top = 24.dp, bottom = 32.dp)
     ) {
-        // Branding Section
+        // Professional Header
         item {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
@@ -75,12 +85,12 @@ fun HomeScreen(viewModel: DashboardViewModel) {
                 Text(
                     text = stringResource(R.string.financial_overview),
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.outline
+                    color = MaterialTheme.colorScheme.secondary
                 )
             }
         }
 
-        // Hero KPI Section
+        // Hero KPI Card
         item {
             HeroBalanceCard(
                 totalBalance = totalBalance,
@@ -90,7 +100,7 @@ fun HomeScreen(viewModel: DashboardViewModel) {
             )
         }
 
-        // Insight & Health Section
+        // Actionable Insights
         item {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 SmartInsightsCard(insights = insights)
@@ -98,7 +108,7 @@ fun HomeScreen(viewModel: DashboardViewModel) {
             }
         }
 
-        // Visual Analytics Section
+        // Monthly Analytics Visualization
         item {
             AnalyticsCard(data = monthlyData)
         }
@@ -112,9 +122,18 @@ fun HomeScreen(viewModel: DashboardViewModel) {
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
-                transactions.take(3).forEach { tx ->
-                    HomeTransactionPreviewItem(transaction = tx)
-                    Spacer(Modifier.height(8.dp))
+                
+                if (transactions.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.no_records_found),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                } else {
+                    transactions.take(3).forEach { tx ->
+                        HomeTransactionPreviewItem(transaction = tx)
+                        Spacer(Modifier.height(8.dp))
+                    }
                 }
             }
         }

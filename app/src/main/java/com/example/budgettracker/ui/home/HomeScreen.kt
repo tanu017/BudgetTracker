@@ -12,6 +12,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.budgettracker.R
+import com.example.budgettracker.ui.home.components.HomeTransactionPreviewItem
 import com.example.budgettracker.ui.transactions.components.*
 import com.example.budgettracker.ui.transactions.engine.*
 import com.example.budgettracker.viewmodel.DashboardViewModel
@@ -84,12 +85,9 @@ fun HomeScreen(viewModel: DashboardViewModel) {
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
+                // Fintech-style read-only preview for the Home screen
                 transactions.take(3).forEach { tx ->
-                    TransactionItem(
-                        transaction = tx,
-                        onDelete = {},
-                        onClick = {}
-                    )
+                    HomeTransactionPreviewItem(transaction = tx)
                     Spacer(Modifier.height(8.dp))
                 }
             }

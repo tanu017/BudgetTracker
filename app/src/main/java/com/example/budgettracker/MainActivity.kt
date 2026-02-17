@@ -2,7 +2,11 @@ package com.example.budgettracker
 
 import android.os.Bundle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Dashboard
@@ -13,6 +17,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -21,7 +27,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.compose.ui.unit.dp
 import com.example.budgettracker.data.local.AppDatabase
 import com.example.budgettracker.repository.AccountRepository
 import com.example.budgettracker.repository.CategoryRepository
@@ -37,10 +42,14 @@ import com.example.budgettracker.viewmodel.DashboardViewModel
 
 /**
  * MainActivity - Entry point for the FinFlow application.
- * Configured as a FragmentActivity to support Biometric Authentication.
+ * Configured as a FragmentActivity to support Biometric Authentication and Edge-to-Edge UI.
  */
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Enable true edge-to-edge
+        enableEdgeToEdge()
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        
         super.onCreate(savedInstanceState)
         setContent {
             // Secure the entire application behind a biometric gate
@@ -84,7 +93,8 @@ fun BudgetTrackerApp() {
     Scaffold(
         bottomBar = {
             NavigationBar(
-                tonalElevation = 8.dp // Material 3 tonal elevation
+                modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars),
+                tonalElevation = 8.dp
             ) {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentDestination = navBackStackEntry?.destination
@@ -96,13 +106,10 @@ fun BudgetTrackerApp() {
                         selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
                         onClick = {
                             navController.navigate(screen.route) {
-                                // Pop up to the start destination to avoid building up a large back stack
                                 popUpTo(navController.graph.findStartDestination().id) {
                                     saveState = true
                                 }
-                                // Avoid multiple copies of the same destination when reselecting
                                 launchSingleTop = true
-                                // Restore state when reselecting a previously selected item
                                 restoreState = true
                             }
                         }

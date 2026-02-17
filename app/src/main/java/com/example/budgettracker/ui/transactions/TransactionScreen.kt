@@ -1,8 +1,6 @@
 package com.example.budgettracker.ui.transactions
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,12 +12,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.budgettracker.R
 import com.example.budgettracker.data.local.AppDatabase
 import com.example.budgettracker.repository.*
 import com.example.budgettracker.viewmodel.*
@@ -28,8 +22,8 @@ import com.example.budgettracker.ui.transactions.utils.TransactionDateUtils
 import com.example.budgettracker.parser.toTransactionEntity
 
 /**
- * Transaction Screen built with Jetpack Compose.
- * Acts as an orchestrator for transaction management.
+ * Transaction Screen - Focused hub for all transaction management.
+ * Optimized with stable collapsible groups and edge-to-edge support.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -55,10 +49,10 @@ fun TransactionScreen() {
     var showEmailParserDialog by remember { mutableStateOf(false) }
     var editingTransaction by remember { mutableStateOf<com.example.budgettracker.data.local.entities.TransactionEntity?>(null) }
 
-    // Replaced mutableStateMapOf with a Set of timestamps for collapsed sections to prevent runtime crash.
-    var collapsedSections by rememberSaveable { mutableStateOf(setOf<Long>()) }
+    // Using a List for saveable state to prevent runtime crash during state restoration.
+    var collapsedSections by rememberSaveable { mutableStateOf(listOf<Long>()) }
 
-    // Aggregate Dynamic Data for Filters
+    // --- Logic Delegation ---
     val categories = remember(transactions) {
         listOf("ALL") + transactions.map { it.category }.distinct().sorted()
     }
@@ -75,7 +69,7 @@ fun TransactionScreen() {
             .groupBy { TransactionDateUtils.startOfDay(it.timestamp) }
     }
 
-    // Dialogs
+    // --- Dialogs ---
     if (showEmailParserDialog) {
         EmailParserDialog(
             onDismiss = { showEmailParserDialog = false },
@@ -97,29 +91,26 @@ fun TransactionScreen() {
         )
     }
 
+    // --- UI Layout ---
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)
+        contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp) // Bottom padding for FAB/Nav
     ) {
-        // Form Section
+        // Form Section (End-to-End management)
         item {
-            AddTransactionForm(
-                onSave = { viewModel.insertTransaction(it) }
-            )
+            AddTransactionForm(onSave = { viewModel.insertTransaction(it) })
         }
 
-        // Email Parser Entry Button
+        // Email Parser Entry
         item {
-            TransactionActionRow(
-                onPasteClick = { showEmailParserDialog = true }
-            )
+            TransactionActionRow(onPasteClick = { showEmailParserDialog = true })
         }
 
-        // Sticky Search and Filters
+        // Filters (Sticky)
         stickyHeader {
             TransactionFilterHeader(
                 searchQuery = searchQuery,
@@ -132,6 +123,7 @@ fun TransactionScreen() {
             )
         }
 
+        // Transactions List with Optimized Collapsible Date Groups
         if (filteredGroupedTransactions.isEmpty()) {
             item { EmptyTransactionsState() }
         } else {
@@ -142,19 +134,24 @@ fun TransactionScreen() {
                     Surface(
                         modifier = Modifier.clickable { 
                             collapsedSections = if (isCollapsed) {
-                                collapsedSections - date
+                                collapsedSections.filter { it != date }
                             } else {
                                 collapsedSections + date
                             }
                         },
-                        color = MaterialTheme.colorScheme.surface
+                        color = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 2.dp
                     ) {
-                        DateHeader(date = TransactionDateUtils.formatHeaderDate(date))
+                        DateHeader(
+                            date = TransactionDateUtils.formatHeaderDate(date),
+                            isExpanded = !isCollapsed
+                        )
                     }
                 }
 
-                items(items = itemsForDate, key = { it.id }) { tx ->
-                    AnimatedVisibility(visible = !isCollapsed) {
+                // FIXED: Only emit items when expanded to remove phantom spacing
+                if (!isCollapsed) {
+                    items(items = itemsForDate, key = { it.id }) { tx ->
                         TransactionItem(
                             transaction = tx,
                             onDelete = { viewModel.deleteTransaction(tx) },

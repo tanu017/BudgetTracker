@@ -1,6 +1,8 @@
 package com.example.budgettracker.ui.transactions
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,8 +13,11 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.budgettracker.data.local.AppDatabase
 import com.example.budgettracker.repository.*
@@ -49,7 +54,7 @@ fun TransactionScreen() {
     var showEmailParserDialog by remember { mutableStateOf(false) }
     var editingTransaction by remember { mutableStateOf<com.example.budgettracker.data.local.entities.TransactionEntity?>(null) }
 
-    // Using a List for saveable state to prevent runtime crash during state restoration.
+    // List for saveable state to prevent runtime crash during state restoration.
     var collapsedSections by rememberSaveable { mutableStateOf(listOf<Long>()) }
 
     // --- Logic Delegation ---
@@ -68,6 +73,12 @@ fun TransactionScreen() {
             .sortedByDescending { it.timestamp }
             .groupBy { TransactionDateUtils.startOfDay(it.timestamp) }
     }
+
+    // Daily analytics for sticky row
+    val todayStart = remember { TransactionDateUtils.startOfDay(System.currentTimeMillis()) }
+    val todayTransactions = transactions.filter { TransactionDateUtils.startOfDay(it.timestamp) == todayStart }
+    val todaySpent = todayTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+    val todayEarned = todayTransactions.filter { it.type == "INCOME" }.sumOf { it.amount }
 
     // --- Dialogs ---
     if (showEmailParserDialog) {
@@ -98,7 +109,7 @@ fun TransactionScreen() {
             .padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp) // Bottom padding for FAB/Nav
+        contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp)
     ) {
         // Form Section (End-to-End management)
         item {
@@ -110,20 +121,36 @@ fun TransactionScreen() {
             TransactionActionRow(onPasteClick = { showEmailParserDialog = true })
         }
 
-        // Filters (Sticky)
+        // Sticky Summary and Filters
         stickyHeader {
-            TransactionFilterHeader(
-                searchQuery = searchQuery,
-                onSearchChange = { searchQuery = it },
-                selectedType = selectedTypeFilter,
-                onTypeChange = { selectedTypeFilter = it },
-                categories = categories,
-                selectedCategory = selectedCategoryFilter,
-                onCategoryChange = { selectedCategoryFilter = it }
-            )
+            Column(modifier = Modifier.background(MaterialTheme.colorScheme.surface)) {
+                // Micro-UX: Sticky Today Summary
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = "Today spent: ₹%.0f".format(todaySpent), style = MaterialTheme.typography.labelMedium, color = Color(0xFFC62828))
+                        Text(text = "Today earned: ₹%.0f".format(todayEarned), style = MaterialTheme.typography.labelMedium, color = Color(0xFF2E7D32))
+                    }
+                }
+                
+                TransactionFilterHeader(
+                    searchQuery = searchQuery,
+                    onSearchChange = { searchQuery = it },
+                    selectedType = selectedTypeFilter,
+                    onTypeChange = { selectedTypeFilter = it },
+                    categories = categories,
+                    selectedCategory = selectedCategoryFilter,
+                    onCategoryChange = { selectedCategoryFilter = it }
+                )
+            }
         }
 
-        // Transactions List with Optimized Collapsible Date Groups
         if (filteredGroupedTransactions.isEmpty()) {
             item { EmptyTransactionsState() }
         } else {
@@ -143,13 +170,12 @@ fun TransactionScreen() {
                         tonalElevation = 2.dp
                     ) {
                         DateHeader(
-                            date = TransactionDateUtils.formatHeaderDate(date),
+                            date = "${TransactionDateUtils.formatHeaderDate(date)} (${itemsForDate.size})",
                             isExpanded = !isCollapsed
                         )
                     }
                 }
 
-                // FIXED: Only emit items when expanded to remove phantom spacing
                 if (!isCollapsed) {
                     items(items = itemsForDate, key = { it.id }) { tx ->
                         TransactionItem(

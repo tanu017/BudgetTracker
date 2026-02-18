@@ -3,6 +3,11 @@ package com.example.budgettracker
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
@@ -15,6 +20,7 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -41,18 +47,16 @@ import com.example.budgettracker.viewmodel.BudgetViewModelFactory
 import com.example.budgettracker.viewmodel.DashboardViewModel
 
 /**
- * MainActivity - Entry point for the FinFlow application.
- * Configured as a FragmentActivity to support Biometric Authentication and Edge-to-Edge UI.
+ * MainActivity - Entry point for FinFlow.
+ * Enhanced with premium navigation animations and edge-to-edge support.
  */
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Enable true edge-to-edge
         enableEdgeToEdge()
         WindowCompat.setDecorFitsSystemWindows(window, false)
         
         super.onCreate(savedInstanceState)
         setContent {
-            // Secure the entire application behind a biometric gate
             AppLockGate {
                 BudgetTrackerApp()
             }
@@ -60,9 +64,6 @@ class MainActivity : FragmentActivity() {
     }
 }
 
-/**
- * Navigation destinations for the application.
- */
 sealed class Screen(val route: String, val labelId: Int, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     object Home : Screen("home", R.string.title_home, Icons.Default.Home)
     object Transactions : Screen("transactions", R.string.title_transactions, Icons.Default.List)
@@ -75,16 +76,12 @@ fun BudgetTrackerApp() {
     val context = LocalContext.current
     val database = remember { AppDatabase.getDatabase(context) }
     
-    // Core Repository layer initialization
     val transactionRepo = remember { TransactionRepository(database.transactionDao()) }
     val accountRepo = remember { AccountRepository(database.accountDao()) }
     val categoryRepo = remember { CategoryRepository(database.categoryDao()) }
     val reminderRepo = remember { ReminderRepository(database.reminderDao()) }
 
-    // Unified ViewModel Factory
     val factory = BudgetViewModelFactory(transactionRepo, accountRepo, categoryRepo, reminderRepo)
-    
-    // Global DashboardViewModel for shared data across tabs
     val dashboardViewModel: DashboardViewModel = viewModel(factory = factory)
 
     val navController = rememberNavController()
@@ -100,10 +97,24 @@ fun BudgetTrackerApp() {
                 val currentDestination = navBackStackEntry?.destination
                 
                 navItems.forEach { screen ->
+                    val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                    
+                    // micro-UX: Animated scaling for selected icon
+                    val iconScale by animateFloatAsState(
+                        targetValue = if (selected) 1.2f else 1.0f,
+                        label = "iconScale"
+                    )
+
                     NavigationBarItem(
-                        icon = { Icon(screen.icon, contentDescription = null) },
+                        icon = { 
+                            Icon(
+                                imageVector = screen.icon, 
+                                contentDescription = null,
+                                modifier = Modifier.scale(iconScale)
+                            ) 
+                        },
                         label = { Text(stringResource(screen.labelId)) },
-                        selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                        selected = selected,
                         onClick = {
                             navController.navigate(screen.route) {
                                 popUpTo(navController.graph.findStartDestination().id) {
@@ -118,10 +129,13 @@ fun BudgetTrackerApp() {
             }
         }
     ) { innerPadding ->
+        // Premium transition: Smooth fade between tabs
         NavHost(
             navController = navController,
             startDestination = Screen.Home.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding),
+            enterTransition = { fadeIn() },
+            exitTransition = { fadeOut() }
         ) {
             composable(Screen.Home.route) { HomeScreen(viewModel = dashboardViewModel) }
             composable(Screen.Transactions.route) { TransactionScreen() }

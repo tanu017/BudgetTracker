@@ -7,6 +7,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -21,16 +22,11 @@ import com.example.budgettracker.ui.transactions.model.MonthlyAnalytics
 import java.text.SimpleDateFormat
 import java.util.*
 
-/**
- * Home Screen - The financial command center of FinFlow.
- * Displays a hero KPI card, smart insights, and monthly trends.
- */
 @Composable
 fun HomeScreen(viewModel: DashboardViewModel) {
     val transactions by viewModel.allTransactions.observeAsState(initial = emptyList())
     val accounts by viewModel.allAccounts.observeAsState(initial = emptyList())
 
-    // Advanced analysis via Business Engines
     val insights = remember(transactions) { InsightsEngine.calculate(transactions) }
     val healthMetrics = remember(transactions) { BudgetHealthEngine.compute(transactions) }
 
@@ -39,28 +35,27 @@ fun HomeScreen(viewModel: DashboardViewModel) {
     val totalBalance = accounts.sumOf { it.balance }
     val savingsRate = (healthMetrics.savingsRatio * 100).toInt()
 
-    // Monthly Trend Calculation
+    val greeting = remember {
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        when (hour) {
+            in 0..11 -> "Good morning"
+            in 12..16 -> "Good afternoon"
+            else -> "Good evening"
+        }
+    }
+
     val monthlyData = remember(transactions) {
         val sdf = SimpleDateFormat("MM-yyyy", Locale.getDefault())
         val labelSdf = SimpleDateFormat("MMM", Locale.getDefault())
         val calendar = Calendar.getInstance()
         val data = mutableListOf<MonthlyAnalytics>()
-        
         for (i in 5 downTo 0) {
             calendar.time = Date()
             calendar.add(Calendar.MONTH, -i)
             val monthYearKey = sdf.format(calendar.time)
             val monthLabel = labelSdf.format(calendar.time)
-            
-            val monthTransactions = transactions.filter { 
-                sdf.format(Date(it.timestamp)) == monthYearKey 
-            }
-            
-            data.add(MonthlyAnalytics(
-                label = monthLabel, 
-                income = monthTransactions.filter { it.type == "INCOME" }.sumOf { it.amount }.toFloat(), 
-                expense = monthTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }.toFloat()
-            ))
+            val monthTransactions = transactions.filter { sdf.format(Date(it.timestamp)) == monthYearKey }
+            data.add(MonthlyAnalytics(label = monthLabel, income = monthTransactions.filter { it.type == "INCOME" }.sumOf { it.amount }.toFloat(), expense = monthTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }.toFloat()))
         }
         data
     }
@@ -68,19 +63,15 @@ fun HomeScreen(viewModel: DashboardViewModel) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(24.dp), // Premium Section Spacing
+        verticalArrangement = Arrangement.spacedBy(24.dp),
         contentPadding = PaddingValues(top = 24.dp, bottom = 32.dp)
     ) {
-        // Professional Header
         item {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = stringResource(R.string.app_branding),
-                    style = MaterialTheme.typography.headlineMedium.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 1.sp
-                    ),
-                    color = MaterialTheme.colorScheme.primary
+                    text = greeting,
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = stringResource(R.string.financial_overview),
@@ -90,7 +81,6 @@ fun HomeScreen(viewModel: DashboardViewModel) {
             }
         }
 
-        // Hero KPI Card
         item {
             HeroBalanceCard(
                 totalBalance = totalBalance,
@@ -100,7 +90,29 @@ fun HomeScreen(viewModel: DashboardViewModel) {
             )
         }
 
-        // Actionable Insights
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(0.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Monthly spending",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    val spendingRatio = if (totalIncome > 0) (totalExpense / totalIncome).toFloat().coerceIn(0f, 1f) else 0f
+                    LinearProgressIndicator(
+                        progress = { spendingRatio },
+                        modifier = Modifier.fillMaxWidth().height(8.dp),
+                        strokeCap = StrokeCap.Round
+                    )
+                }
+            }
+        }
+
         item {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 SmartInsightsCard(insights = insights)
@@ -108,12 +120,8 @@ fun HomeScreen(viewModel: DashboardViewModel) {
             }
         }
 
-        // Monthly Analytics Visualization
-        item {
-            AnalyticsCard(data = monthlyData)
-        }
+        item { AnalyticsCard(data = monthlyData) }
 
-        // Recent Activity Preview
         item {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
@@ -122,7 +130,6 @@ fun HomeScreen(viewModel: DashboardViewModel) {
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
-                
                 if (transactions.isEmpty()) {
                     Text(
                         text = stringResource(R.string.no_records_found),

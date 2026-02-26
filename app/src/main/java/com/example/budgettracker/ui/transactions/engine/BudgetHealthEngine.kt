@@ -6,7 +6,10 @@ import java.util.*
 
 object BudgetHealthEngine {
     fun compute(transactions: List<TransactionEntity>): BudgetHealthMetrics {
-        if (transactions.isEmpty()) return BudgetHealthMetrics(0, 0f, 0f, 0.0, "No Data")
+        // Exclude TRANSFERS from financial health calculations
+        val externalTransactions = transactions.filter { it.type != "TRANSFER" }
+        
+        if (externalTransactions.isEmpty()) return BudgetHealthMetrics(0, 0f, 0f, 0.0, "No Data")
 
         val calendar = Calendar.getInstance()
         val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
@@ -14,7 +17,7 @@ object BudgetHealthEngine {
         val currentMonth = calendar.get(Calendar.MONTH)
         val currentYear = calendar.get(Calendar.YEAR)
 
-        val thisMonth = transactions.filter {
+        val thisMonth = externalTransactions.filter {
             val tc = Calendar.getInstance().apply { timeInMillis = it.timestamp }
             tc.get(Calendar.MONTH) == currentMonth && tc.get(Calendar.YEAR) == currentYear
         }
@@ -28,7 +31,7 @@ object BudgetHealthEngine {
 
         val prevMonth = if (currentMonth == 0) 11 else currentMonth - 1
         val prevYear = if (currentMonth == 0) currentYear - 1 else currentYear
-        val prevExpense = transactions.filter {
+        val prevExpense = externalTransactions.filter {
             val tc = Calendar.getInstance().apply { timeInMillis = it.timestamp }
             it.type == "EXPENSE" && tc.get(Calendar.MONTH) == prevMonth && tc.get(Calendar.YEAR) == prevYear
         }.sumOf { it.amount }
@@ -40,17 +43,40 @@ object BudgetHealthEngine {
         if (growth < 0) score += 10
         if (expense > income && income > 0) score -= 30
         
+        val finalScore = score.coerceIn(0, 100)
+        
         return BudgetHealthMetrics(
-            score = score.coerceIn(0, 100),
+            score = finalScore,
             savingsRatio = savingsRatio,
             growthRate = growth,
             predictedSpend = predictedSpend,
             healthStatus = when {
-                score > 80 -> "Excellent"
-                score > 60 -> "Good"
-                score > 40 -> "Risk"
+                finalScore > 80 -> "Excellent"
+                finalScore > 60 -> "Good"
+                finalScore > 40 -> "Risk"
                 else -> "Critical"
             }
         )
+    }
+
+    /**
+     * Calculates the derived balance for a specific account from the transaction ledger.
+     */
+    fun calculateAccountBalance(
+        accountName: String,
+        transactions: List<TransactionEntity>
+    ): Double {
+        return transactions
+            .filter { it.accountName == accountName }
+            .sumOf { tx ->
+                when (tx.type) {
+                    "INCOME" -> tx.amount
+                    "EXPENSE" -> -tx.amount
+                    "TRANSFER" ->
+                        if (tx.transferDirection == "IN") tx.amount
+                        else -tx.amount
+                    else -> 0.0
+                }
+            }
     }
 }

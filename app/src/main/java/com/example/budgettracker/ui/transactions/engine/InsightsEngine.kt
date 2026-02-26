@@ -7,7 +7,11 @@ import java.util.*
 object InsightsEngine {
     fun calculate(transactions: List<TransactionEntity>): List<SmartInsight> {
         val list = mutableListOf<SmartInsight>()
-        if (transactions.isEmpty()) {
+        
+        // Filter out TRANSFERS for financial insights
+        val externalTransactions = transactions.filter { it.type != "TRANSFER" }
+        
+        if (externalTransactions.isEmpty()) {
             return listOf(SmartInsight("Welcome", "Add transactions to see smart insights", "INFO"))
         }
 
@@ -15,7 +19,7 @@ object InsightsEngine {
         val currentMonth = calendar.get(Calendar.MONTH)
         val currentYear = calendar.get(Calendar.YEAR)
         
-        val thisMonthTransactions = transactions.filter {
+        val thisMonthTransactions = externalTransactions.filter {
             val txCal = Calendar.getInstance().apply { timeInMillis = it.timestamp }
             txCal.get(Calendar.MONTH) == currentMonth && txCal.get(Calendar.YEAR) == currentYear
         }
@@ -31,7 +35,7 @@ object InsightsEngine {
         // MoM Comparison logic
         val prevMonth = if (currentMonth == 0) 11 else currentMonth - 1
         val prevYear = if (currentMonth == 0) currentYear - 1 else currentYear
-        val prevExp = transactions.filter {
+        val prevExp = externalTransactions.filter {
             val txCal = Calendar.getInstance().apply { timeInMillis = it.timestamp }
             it.type == "EXPENSE" && txCal.get(Calendar.MONTH) == prevMonth && txCal.get(Calendar.YEAR) == prevYear
         }.sumOf { it.amount }

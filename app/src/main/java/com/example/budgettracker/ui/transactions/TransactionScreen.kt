@@ -15,21 +15,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.budgettracker.data.local.AppDatabase
+import com.example.budgettracker.data.local.entities.TransactionEntity
 import com.example.budgettracker.repository.*
 import com.example.budgettracker.viewmodel.*
 import com.example.budgettracker.ui.transactions.components.*
 import com.example.budgettracker.ui.transactions.utils.TransactionDateUtils
+import com.example.budgettracker.ui.transactions.model.TransactionListItem
+import com.example.budgettracker.ui.transactions.engine.TransactionConsolidationEngine
 import com.example.budgettracker.parser.toTransactionEntity
 
-/**
- * Transaction Screen - Focused hub for all transaction management.
- * Optimized with stable collapsible groups and edge-to-edge support.
- */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun TransactionScreen() {
@@ -52,33 +49,47 @@ fun TransactionScreen() {
     var selectedCategoryFilter by remember { mutableStateOf("ALL") }
     var searchQuery by remember { mutableStateOf("") }
     var showEmailParserDialog by remember { mutableStateOf(false) }
-    var editingTransaction by remember { mutableStateOf<com.example.budgettracker.data.local.entities.TransactionEntity?>(null) }
-
-    // List for saveable state to prevent runtime crash during state restoration.
+    var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
     var collapsedSections by rememberSaveable { mutableStateOf(listOf<Long>()) }
 
-    // --- Logic Delegation ---
+    // --- Logic: Use Centralized Consolidation Engine ---
+    val consolidatedTransactions = remember(transactions) {
+        TransactionConsolidationEngine.consolidate(transactions)
+    }
+
+    // --- Logic: Filter and Group the consolidated list ---
+    val filteredGroupedTransactions = remember(consolidatedTransactions, selectedTypeFilter, selectedCategoryFilter, searchQuery) {
+        consolidatedTransactions
+            .filter { listItem ->
+                when (listItem) {
+                    is TransactionListItem.Regular -> {
+                        val matchesType = if (selectedTypeFilter == "ALL") true else listItem.transaction.type == selectedTypeFilter
+                        val matchesCategory = if (selectedCategoryFilter == "ALL") true else listItem.transaction.category == selectedCategoryFilter
+                        val matchesSearch = listItem.transaction.category.contains(searchQuery, ignoreCase = true)
+                        matchesType && matchesCategory && matchesSearch
+                    }
+                    is TransactionListItem.Transfer -> {
+                        val matchesType = selectedTypeFilter == "ALL" || selectedTypeFilter == "TRANSFER"
+                        val matchesCategory = selectedCategoryFilter == "ALL" || selectedCategoryFilter == "Transfer"
+                        val matchesSearch = "Transfer".contains(searchQuery, ignoreCase = true) || 
+                                          listItem.fromAccount.contains(searchQuery, ignoreCase = true) ||
+                                          listItem.toAccount.contains(searchQuery, ignoreCase = true)
+                        matchesType && matchesCategory && matchesSearch
+                    }
+                }
+            }
+            .groupBy { TransactionDateUtils.startOfDay(it.timestamp) }
+    }
+
     val categories = remember(transactions) {
         listOf("ALL") + transactions.map { it.category }.distinct().sorted()
     }
 
-    val filteredGroupedTransactions = remember(transactions, selectedTypeFilter, selectedCategoryFilter, searchQuery) {
-        transactions
-            .filter { tx ->
-                val matchesType = if (selectedTypeFilter == "ALL") true else tx.type == selectedTypeFilter
-                val matchesCategory = if (selectedCategoryFilter == "ALL") true else tx.category == selectedCategoryFilter
-                val matchesSearch = tx.category.contains(searchQuery, ignoreCase = true)
-                matchesType && matchesCategory && matchesSearch
-            }
-            .sortedByDescending { it.timestamp }
-            .groupBy { TransactionDateUtils.startOfDay(it.timestamp) }
-    }
-
-    // Daily analytics for sticky row
+    // Daily totals (Correctly ignores TRANSFERS via external flag)
     val todayStart = remember { TransactionDateUtils.startOfDay(System.currentTimeMillis()) }
-    val todayTransactions = transactions.filter { TransactionDateUtils.startOfDay(it.timestamp) == todayStart }
-    val todaySpent = todayTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
-    val todayEarned = todayTransactions.filter { it.type == "INCOME" }.sumOf { it.amount }
+    val todayItems = consolidatedTransactions.filter { TransactionDateUtils.startOfDay(it.timestamp) == todayStart }
+    val todaySpent = todayItems.filter { it is TransactionListItem.Regular && it.transaction.type == "EXPENSE" }.sumOf { it.amount }
+    val todayEarned = todayItems.filter { it is TransactionListItem.Regular && it.transaction.type == "INCOME" }.sumOf { it.amount }
 
     // --- Dialogs ---
     if (showEmailParserDialog) {
@@ -102,52 +113,28 @@ fun TransactionScreen() {
         )
     }
 
-    // --- UI Layout ---
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp)
     ) {
-        // Form Section (End-to-End management)
-        item {
-            AddTransactionForm(onSave = { viewModel.insertTransaction(it) })
-        }
+        item { AddTransactionForm(onSave = { viewModel.insertTransaction(it) }) }
+        item { TransactionActionRow(onPasteClick = { showEmailParserDialog = true }) }
 
-        // Email Parser Entry
-        item {
-            TransactionActionRow(onPasteClick = { showEmailParserDialog = true })
-        }
-
-        // Sticky Summary and Filters
         stickyHeader {
             Column(modifier = Modifier.background(MaterialTheme.colorScheme.surface)) {
-                // Micro-UX: Sticky Today Summary
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
                     shape = MaterialTheme.shapes.small,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
+                    Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(text = "Today spent: ₹%.0f".format(todaySpent), style = MaterialTheme.typography.labelMedium, color = Color(0xFFC62828))
                         Text(text = "Today earned: ₹%.0f".format(todayEarned), style = MaterialTheme.typography.labelMedium, color = Color(0xFF2E7D32))
                     }
                 }
-                
-                TransactionFilterHeader(
-                    searchQuery = searchQuery,
-                    onSearchChange = { searchQuery = it },
-                    selectedType = selectedTypeFilter,
-                    onTypeChange = { selectedTypeFilter = it },
-                    categories = categories,
-                    selectedCategory = selectedCategoryFilter,
-                    onCategoryChange = { selectedCategoryFilter = it }
-                )
+                TransactionFilterHeader(searchQuery, { searchQuery = it }, selectedTypeFilter, { selectedTypeFilter = it }, categories, selectedCategoryFilter, { selectedCategoryFilter = it })
             }
         }
 
@@ -156,33 +143,46 @@ fun TransactionScreen() {
         } else {
             filteredGroupedTransactions.forEach { (date, itemsForDate) ->
                 val isCollapsed = collapsedSections.contains(date)
-                
                 stickyHeader {
                     Surface(
                         modifier = Modifier.clickable { 
-                            collapsedSections = if (isCollapsed) {
-                                collapsedSections.filter { it != date }
-                            } else {
-                                collapsedSections + date
-                            }
+                            collapsedSections = if (isCollapsed) collapsedSections.filter { it != date } else collapsedSections + date
                         },
                         color = MaterialTheme.colorScheme.surface,
                         tonalElevation = 2.dp
                     ) {
-                        DateHeader(
-                            date = "${TransactionDateUtils.formatHeaderDate(date)} (${itemsForDate.size})",
-                            isExpanded = !isCollapsed
-                        )
+                        DateHeader(date = "${TransactionDateUtils.formatHeaderDate(date)} (${itemsForDate.size})", isExpanded = !isCollapsed)
                     }
                 }
 
                 if (!isCollapsed) {
-                    items(items = itemsForDate, key = { it.id }) { tx ->
-                        TransactionItem(
-                            transaction = tx,
-                            onDelete = { viewModel.deleteTransaction(tx) },
-                            onClick = { editingTransaction = tx }
-                        )
+                    items(items = itemsForDate, key = { listItem -> 
+                        when(listItem) {
+                            is TransactionListItem.Regular -> "reg_${listItem.transaction.id}"
+                            is TransactionListItem.Transfer -> "trf_${listItem.id}"
+                        }
+                    }) { listItem ->
+                        when (listItem) {
+                            is TransactionListItem.Regular -> {
+                                TransactionItem(
+                                    transaction = listItem.transaction,
+                                    onDelete = { viewModel.deleteTransaction(listItem.transaction) },
+                                    onClick = { editingTransaction = listItem.transaction }
+                                )
+                            }
+                            is TransactionListItem.Transfer -> {
+                                TransactionItem(
+                                    transaction = listItem.sourceEntity,
+                                    onDelete = {
+                                        viewModel.deleteTransaction(listItem.sourceEntity)
+                                        viewModel.deleteTransaction(listItem.destinationEntity)
+                                    },
+                                    onClick = {},
+                                    overrideTitle = "${listItem.fromAccount} → ${listItem.toAccount}",
+                                    isTransfer = true
+                                )
+                            }
+                        }
                     }
                 }
             }

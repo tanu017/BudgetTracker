@@ -18,6 +18,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.example.budgettracker.R
 import com.example.budgettracker.data.local.entities.TransactionEntity
 import com.example.budgettracker.viewmodel.DashboardViewModel
+import com.example.budgettracker.ui.transactions.engine.TransactionConsolidationEngine
+import com.example.budgettracker.ui.transactions.model.TransactionListItem
+import com.example.budgettracker.ui.transactions.components.TransactionItem
 import com.github.mikephil.charting.charts.BarChart
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.BarData
@@ -31,15 +34,23 @@ import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 @Composable
 fun DashboardFragment(viewModel: DashboardViewModel) {
     val transactions by viewModel.allTransactions.observeAsState(initial = emptyList())
-    val accounts by viewModel.allAccounts.observeAsState(initial = emptyList())
+    
+    val consolidatedTransactions = remember(transactions) {
+        TransactionConsolidationEngine.consolidate(transactions)
+    }
 
-    // Data aggregation for Summary
-    val totalIncome = transactions.filter { it.type == "INCOME" }.sumOf { it.amount }
-    val totalExpense = transactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+    // Analytics strictly excludes TRANSFERS
+    val externalTransactions = consolidatedTransactions
+        .filterIsInstance<TransactionListItem.Regular>()
+        .map { it.transaction }
+        .filter { it.type != "TRANSFER" }
+
+    val totalIncome = externalTransactions.filter { it.type == "INCOME" }.sumOf { it.amount }
+    val totalExpense = externalTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
 
     // Aggregate data for Category Chart
-    val expensesByCategory = remember(transactions) {
-        transactions.filter { it.type == "EXPENSE" }
+    val expensesByCategory = remember(externalTransactions) {
+        externalTransactions.filter { it.type == "EXPENSE" }
             .groupBy { it.category }
             .mapValues { it.value.sumOf { tx -> tx.amount } }
             .toList()
@@ -121,15 +132,32 @@ fun DashboardFragment(viewModel: DashboardViewModel) {
             )
         }
 
-        // RECENT TRANSACTIONS
+        // RECENT TRANSACTIONS (Consolidated)
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 text = "Analytics Detail",
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.titleMedium
             )
-            transactions.take(5).forEach { tx ->
-                DashboardRecentTxRow(tx)
+            consolidatedTransactions.take(5).forEach { listItem ->
+                when (listItem) {
+                    is TransactionListItem.Regular -> {
+                        TransactionItem(
+                            transaction = listItem.transaction,
+                            onDelete = {},
+                            onClick = {}
+                        )
+                    }
+                    is TransactionListItem.Transfer -> {
+                        TransactionItem(
+                            transaction = listItem.sourceEntity,
+                            onDelete = {},
+                            onClick = {},
+                            overrideTitle = "${listItem.fromAccount} → ${listItem.toAccount}",
+                            isTransfer = true
+                        )
+                    }
+                }
             }
         }
     }
@@ -195,29 +223,6 @@ private fun updateCategoryChart(chart: BarChart, categories: List<Pair<String, D
     chart.invalidate()
 }
 
-@Composable
-fun DashboardRecentTxRow(tx: TransactionEntity) {
-    HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray.copy(alpha = 0.5f))
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column {
-            Text(text = tx.category, fontWeight = FontWeight.Medium)
-            Text(
-                text = tx.type,
-                fontSize = 12.sp,
-                color = if (tx.type == "INCOME") Color(0xFF2E7D32) else Color(0xFFC62828)
-            )
-        }
-        Text(
-            text = "₹%.2f".format(tx.amount),
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp
-        )
-    }
-}
 private fun formatAmount(value: Float): String {
     return when {
         value >= 1000000 -> "₹%.1fM".format(value / 1000000f)

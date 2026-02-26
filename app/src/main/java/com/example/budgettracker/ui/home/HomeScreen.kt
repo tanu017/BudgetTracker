@@ -19,6 +19,9 @@ import com.example.budgettracker.ui.transactions.components.*
 import com.example.budgettracker.ui.transactions.engine.*
 import com.example.budgettracker.viewmodel.DashboardViewModel
 import com.example.budgettracker.ui.transactions.model.MonthlyAnalytics
+import com.example.budgettracker.ui.transactions.model.TransactionListItem
+import com.example.budgettracker.ui.transactions.engine.BudgetHealthEngine
+import com.example.budgettracker.ui.transactions.engine.TransactionConsolidationEngine
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -27,12 +30,23 @@ fun HomeScreen(viewModel: DashboardViewModel) {
     val transactions by viewModel.allTransactions.observeAsState(initial = emptyList())
     val accounts by viewModel.allAccounts.observeAsState(initial = emptyList())
 
+    // Logic Delegation
     val insights = remember(transactions) { InsightsEngine.calculate(transactions) }
     val healthMetrics = remember(transactions) { BudgetHealthEngine.compute(transactions) }
+    
+    // Centralized consolidation to remove duplicates from Home
+    val consolidatedTransactions = remember(transactions) {
+        TransactionConsolidationEngine.consolidate(transactions)
+    }
 
-    val totalIncome = transactions.filter { it.type == "INCOME" }.sumOf { it.amount }
-    val totalExpense = transactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
-    val totalBalance = accounts.sumOf { it.balance }
+    val externalTransactions = transactions.filter { it.type != "TRANSFER" }
+    val totalIncome = externalTransactions.filter { it.type == "INCOME" }.sumOf { it.amount }
+    val totalExpense = externalTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+    
+    val totalBalance: Double = accounts.sumOf { account ->
+        BudgetHealthEngine.calculateAccountBalance(account.accountName, transactions)
+    }
+    
     val savingsRate = (healthMetrics.savingsRatio * 100).toInt()
 
     val greeting = remember {
@@ -54,7 +68,7 @@ fun HomeScreen(viewModel: DashboardViewModel) {
             calendar.add(Calendar.MONTH, -i)
             val monthYearKey = sdf.format(calendar.time)
             val monthLabel = labelSdf.format(calendar.time)
-            val monthTransactions = transactions.filter { sdf.format(Date(it.timestamp)) == monthYearKey }
+            val monthTransactions = externalTransactions.filter { sdf.format(Date(it.timestamp)) == monthYearKey }
             data.add(MonthlyAnalytics(label = monthLabel, income = monthTransactions.filter { it.type == "INCOME" }.sumOf { it.amount }.toFloat(), expense = monthTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }.toFloat()))
         }
         data
@@ -130,15 +144,26 @@ fun HomeScreen(viewModel: DashboardViewModel) {
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
-                if (transactions.isEmpty()) {
+                if (consolidatedTransactions.isEmpty()) {
                     Text(
                         text = stringResource(R.string.no_records_found),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.outline
                     )
                 } else {
-                    transactions.take(3).forEach { tx ->
-                        HomeTransactionPreviewItem(transaction = tx)
+                    consolidatedTransactions.take(3).forEach { listItem ->
+                        when (listItem) {
+                            is TransactionListItem.Regular -> {
+                                HomeTransactionPreviewItem(transaction = listItem.transaction)
+                            }
+                            is TransactionListItem.Transfer -> {
+                                HomeTransactionPreviewItem(
+                                    transaction = listItem.sourceEntity,
+                                    overrideTitle = "${listItem.fromAccount} → ${listItem.toAccount}",
+                                    isTransfer = true
+                                )
+                            }
+                        }
                         Spacer(Modifier.height(8.dp))
                     }
                 }

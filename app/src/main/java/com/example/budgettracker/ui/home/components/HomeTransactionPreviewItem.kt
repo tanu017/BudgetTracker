@@ -17,7 +17,11 @@ import com.example.budgettracker.ui.transactions.utils.TransactionDateUtils
  * Optimized for a clean, dashboard-style UI.
  */
 @Composable
-fun HomeTransactionPreviewItem(transaction: TransactionEntity) {
+fun HomeTransactionPreviewItem(
+    transaction: TransactionEntity,
+    overrideTitle: String? = null,
+    isTransfer: Boolean = false
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
@@ -35,15 +39,20 @@ fun HomeTransactionPreviewItem(transaction: TransactionEntity) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = transaction.category,
+                    text = overrideTitle ?: transaction.category,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "${transaction.type} • ${TransactionDateUtils.formatDate(transaction.timestamp)}",
+                    text = if (isTransfer) "Internal Transfer • ${TransactionDateUtils.formatDate(transaction.timestamp)}" 
+                           else "${transaction.type} • ${TransactionDateUtils.formatDate(transaction.timestamp)}",
                     fontSize = 12.sp,
-                    color = if (transaction.type == "INCOME") Color(0xFF4CAF50) else Color(0xFFF44336)
+                    color = when {
+                        isTransfer -> MaterialTheme.colorScheme.secondary
+                        transaction.type == "INCOME" -> Color(0xFF4CAF50)
+                        else -> Color(0xFFF44336)
+                    }
                 )
             }
             
@@ -51,7 +60,7 @@ fun HomeTransactionPreviewItem(transaction: TransactionEntity) {
                 text = "₹%.2f".format(transaction.amount),
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp,
-                color = MaterialTheme.colorScheme.primary
+                color = if (isTransfer) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
             )
         }
     }

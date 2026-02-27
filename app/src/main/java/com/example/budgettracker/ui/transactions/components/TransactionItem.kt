@@ -20,7 +20,7 @@ private val TransferBlue = Color(0xFF2962FF)
 
 /**
  * Reusable Transaction Item component.
- * Supports both standard transactions and consolidated transfers.
+ * Supports both standard transactions and consolidated transfers with premium styling.
  */
 @Composable
 fun TransactionItem(
@@ -28,12 +28,14 @@ fun TransactionItem(
     onDelete: () -> Unit,
     onClick: () -> Unit,
     overrideTitle: String? = null,
-    isTransfer: Boolean = false
+    isTransfer: Boolean = false,
+    showDelete: Boolean = true
 ) {
     val title = overrideTitle ?: transaction.category
     
-    val accentColor = when {
-        isTransfer -> TransferBlue
+    // Color logic for financial meaning
+    val amountColor = when {
+        isTransfer -> MaterialTheme.colorScheme.secondary // Neutralized for transfers
         transaction.type == "INCOME" -> Color(0xFF2E7D32)
         else -> Color(0xFFC62828)
     }
@@ -86,7 +88,7 @@ fun TransactionItem(
                     Text(
                         text = detailText,
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (isTransfer) TransferBlue.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
                 }
             }
@@ -96,16 +98,19 @@ fun TransactionItem(
                     text = "₹%.2f".format(transaction.amount),
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
-                    color = accentColor,
-                    modifier = Modifier.padding(end = 8.dp)
+                    color = amountColor,
+                    modifier = Modifier.padding(end = if (showDelete) 8.dp else 0.dp)
                 )
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete",
-                        tint = Color(0xFFB71C1C),
-                        modifier = Modifier.size(20.dp)
-                    )
+                
+                if (showDelete) {
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Delete",
+                            tint = Color(0xFFB71C1C),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         }

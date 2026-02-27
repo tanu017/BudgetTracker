@@ -27,6 +27,10 @@ import com.example.budgettracker.ui.transactions.model.TransactionListItem
 import com.example.budgettracker.ui.transactions.engine.TransactionConsolidationEngine
 import com.example.budgettracker.parser.toTransactionEntity
 
+/**
+ * Transaction Screen - Focused hub for all transaction management.
+ * Optimized with centralized consolidation and SSOT ledger logic.
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun TransactionScreen() {
@@ -69,11 +73,11 @@ fun TransactionScreen() {
                         matchesType && matchesCategory && matchesSearch
                     }
                     is TransactionListItem.Transfer -> {
+                        // Transfers are shown if type filter is ALL or specifically TRANSFER
                         val matchesType = selectedTypeFilter == "ALL" || selectedTypeFilter == "TRANSFER"
+                        // Transfers typically use a specific category like "Transfer"
                         val matchesCategory = selectedCategoryFilter == "ALL" || selectedCategoryFilter == "Transfer"
-                        val matchesSearch = "Transfer".contains(searchQuery, ignoreCase = true) || 
-                                          listItem.fromAccount.contains(searchQuery, ignoreCase = true) ||
-                                          listItem.toAccount.contains(searchQuery, ignoreCase = true)
+                        val matchesSearch = "${listItem.fromAccount} ${listItem.toAccount}".contains(searchQuery, ignoreCase = true)
                         matchesType && matchesCategory && matchesSearch
                     }
                 }
@@ -85,7 +89,7 @@ fun TransactionScreen() {
         listOf("ALL") + transactions.map { it.category }.distinct().sorted()
     }
 
-    // Daily totals (Correctly ignores TRANSFERS via external flag)
+    // Daily totals (Correctly ignores TRANSFERS to prevent metric inflation)
     val todayStart = remember { TransactionDateUtils.startOfDay(System.currentTimeMillis()) }
     val todayItems = consolidatedTransactions.filter { TransactionDateUtils.startOfDay(it.timestamp) == todayStart }
     val todaySpent = todayItems.filter { it is TransactionListItem.Regular && it.transaction.type == "EXPENSE" }.sumOf { it.amount }
@@ -162,24 +166,29 @@ fun TransactionScreen() {
                             is TransactionListItem.Transfer -> "trf_${listItem.id}"
                         }
                     }) { listItem ->
+                        // REQUIRED REFACTOR: Explicit when(listItem) pattern
+                        // Ensuring proper mapping of fromAccount -> toAccount and audit-trail integrity
                         when (listItem) {
                             is TransactionListItem.Regular -> {
                                 TransactionItem(
                                     transaction = listItem.transaction,
                                     onDelete = { viewModel.deleteTransaction(listItem.transaction) },
-                                    onClick = { editingTransaction = listItem.transaction }
+                                    onClick = { editingTransaction = listItem.transaction },
+                                    showDelete = true
                                 )
                             }
                             is TransactionListItem.Transfer -> {
                                 TransactionItem(
                                     transaction = listItem.sourceEntity,
                                     onDelete = {
+                                        // Complete Flow: Managed deletion of both matching records
                                         viewModel.deleteTransaction(listItem.sourceEntity)
                                         viewModel.deleteTransaction(listItem.destinationEntity)
                                     },
-                                    onClick = {},
+                                    onClick = {}, // Transfers are generally non-editable directly
                                     overrideTitle = "${listItem.fromAccount} → ${listItem.toAccount}",
-                                    isTransfer = true
+                                    isTransfer = true,
+                                    showDelete = true
                                 )
                             }
                         }

@@ -145,7 +145,8 @@ fun DashboardFragment(viewModel: DashboardViewModel) {
                         TransactionItem(
                             transaction = listItem.transaction,
                             onDelete = {},
-                            onClick = {}
+                            onClick = {},
+                            showDelete = false
                         )
                     }
                     is TransactionListItem.Transfer -> {
@@ -154,7 +155,8 @@ fun DashboardFragment(viewModel: DashboardViewModel) {
                             onDelete = {},
                             onClick = {},
                             overrideTitle = "${listItem.fromAccount} → ${listItem.toAccount}",
-                            isTransfer = true
+                            isTransfer = true,
+                            showDelete = false
                         )
                     }
                 }

@@ -59,13 +59,15 @@ The codebase is organized into a clean, modular package structure:
 ## 📸 Screenshots
 
 ### Home Dashboard
-*(Insert screenshot here)*
+
+
 
 ### Transactions Screen
-*(Insert screenshot here)*
+
+
 
 ### Analytics Dashboard
-*(Insert screenshot here)*
+
 
 ---
 

@@ -4,105 +4,77 @@
 
 ---
 
-## 🚀 Features
+## 🚀 Key Features
 
--   **Income & Expense Tracking:** Effortlessly record every financial activity with detailed categorization.
--   **Multiple Accounts Support:** Manage Bank accounts, Wallets, and Credit Cards in one place.
--   **Internal Account Transfers:** Move money between accounts with a secure double-entry system.
--   **Double-Entry Ledger System:** Ensures data integrity by treating every transaction as a ledger entry.
--   **Transaction Consolidation Engine:** Smartly merges related transfer records for a clean UI view.
--   **Financial Health Analytics:** Visualize spending patterns and net worth trends.
--   **Spending Insights Dashboard:** At-a-glance summary of your monthly financial standing.
--   **Category-Based Tracking:** Deep dive into where your money goes with custom categories.
--   **Material 3 UI:** Modern, accessible, and beautiful interface with dynamic color support.
--   **Advanced History View:** Collapsible transaction groups with powerful search and filtering.
-
----
-
-## 🏗️ Architecture
-
-FinFlow is built on the **MVVM (Model-View-ViewModel)** architecture, emphasizing a **Single Source of Truth (SSOT)** through its Ledger-based model.
-
--   **Ledger-as-SSOT:** Unlike traditional apps that store static balances, FinFlow treats the transaction history as the ultimate truth.
--   **Derived Balances:** Account balances are calculated in real-time from the transaction history, preventing "balance drift" bugs.
--   **Double-Entry Transfers:** Transfers create two synchronized records (Debit from Source, Credit to Destination) to maintain accounting accuracy.
--   **Consolidation Engine:** A custom engine identifies related ledger entries (like transfers) and presents them as a single logical event to the user.
-
----
-
-## 🛠️ Tech Stack
-
-| Component | Technology |
-| :--- | :--- |
-| **Language** | Kotlin |
-| **UI Framework** | Jetpack Compose |
-| **Design System** | Material 3 |
-| **Architecture** | MVVM + Repository Pattern |
-| **Database** | Room (SQLite) |
-| **Charts** | MPAndroidChart |
-| **Concurrency** | Kotlin Coroutines & Flow |
-
----
-
-## 📁 Project Structure
-
-The codebase is organized into a clean, modular package structure:
-
--   **`ui/`**: Contains all Compose screens and components (Home, Transactions, Dashboard, Accounts).
--   **`data/`**: Manages data persistence, including Room Entities, DAOs, and Database configuration.
--   **`repository/`**: Acts as the mediator between the Data layer and the ViewModel.
--   **`viewmodel/`**: Holds the UI state and handles business logic.
--   **`engine/`**: The core "brain" of the app, containing logic for balance derivation and transaction consolidation.
+- **Double-Entry Ledger System:** Ensures 100% data integrity by treating every transaction as a ledger entry.
+- **Smart SMS/Email Parsing:** A specialized tool to quickly "Scan Content" from bank alerts to automate transaction entry.
+- **Multi-Account Management:** Manage Bank accounts (HDFC, BOB, etc.), Wallets, and Credit Cards in one unified interface.
+- **Real-time Derived Balances:** Balances are calculated dynamically from transaction history to prevent "balance drift."
+- **Financial Health Analytics:** High-fidelity charts (MPAndroidChart) visualizing Income vs. Expense and spending categories.
+- **Internal Account Transfers:** Move money between accounts with synchronized Debit/Credit records.
+- **Material 3 UI:** Modern, accessible interface with a clean "Financial Overview" dashboard.
 
 ---
 
 ## 📸 Screenshots
 
-### Home Dashboard
+| Home & Financial Overview | Detailed Analytics |
+|:---:|:---:|
+| <img src="home page.jpg" width="300" /> | <img src="home page 2.jpg" width="300" /> |<img src="dashboard.jpg" width="300" /> |
 
-
-
-### Transactions Screen
-
-
-
-### Analytics Dashboard
-
+| Smart SMS/Email Parser | Account Management |
+|:---:|:---:|
+| <img src="email parser.jpg" width="300" /> | <img src="accounts.jpg" width="300" /> |
 
 ---
 
-## 🔮 Future Improvements
+## 🏗️ Architecture & Tech Stack
 
--   [ ] **SMS Bank Message Parsing:** Automate transaction entry by reading bank alerts.
--   [ ] **AI Spending Insights:** Personalized financial advice based on spending habits.
--   [ ] **Budget Planning Tools:** Set monthly limits for specific categories.
--   [ ] **Cloud Sync:** Securely backup data across multiple devices.
--   [ ] **Google Play Release:** Bringing FinFlow to the official Android store.
+FinFlow is built on the **MVVM (Model-View-ViewModel)** architecture, emphasizing a **Single Source of Truth (SSOT)**.
+
+- **Language:** Kotlin
+- **UI Framework:** Jetpack Compose (Declarative UI)
+- **Database:** Room (SQLite) with custom Ledger logic
+- **Concurrency:** Kotlin Coroutines & Flow for reactive UI updates
+- **Architecture:** MVVM + Repository Pattern
+- **Logic Engine:** Custom `BudgetHealthEngine` and Transaction Consolidation logic.
+
+---
+
+## 📁 Project Structure
+
+- **`ui/`**: Compose screens and components (Home, Transactions, Dashboard, Accounts).
+- **`data/`**: Room Entities, DAOs, and Type Converters for financial data.
+- **`repository/`**: Mediator layer for clean data flow.
+- **`engine/`**: The core "brain" handling balance derivation and health-score logic.
+
+---
+
+## 🔮 Roadmap
+
+- [x] **Core Accounting Engine**
+- [x] **Visual Analytics**
+- [ ] **Automated SMS Background Listener** (Next Release)
+- [ ] **AI Spending Insights:** Personalized advice based on spending habits.
+- [ ] **Cloud Sync:** Securely backup data across multiple devices.
 
 ---
 
 ## ⚙️ Installation
 
-To run this project locally, follow these steps:
+1. **Clone the repository:**
+   ```sh
+   git clone [https://github.com/tanu017/BudgetTracker.git](https://github.com/tanu017/BudgetTracker.git)
+   Open in Android Studio:
+Select Open..., then navigate to the cloned folder.
 
-1.  **Clone the repository:**
-    ```sh
-    git clone https://github.com/yourusername/FinFlow.git
-    ```
-2.  **Open in Android Studio:**
-    Launch Android Studio and select `Open...`, then navigate to the cloned folder.
-3.  **Sync Project:**
-    Allow Gradle to download dependencies and sync the project.
-4.  **Run:**
-    Select your emulator or physical device and click the **Run** button.
+Run:
+Select your emulator and click the Run button.
 
----
+✍️ Author
+Tanushree
+Final Year BCA Student @ Ramaiah College
 
-## ✍️ Author
+Junior Software Engineer (Part-Time) | Android Developer
 
-**Tanushree**  
-Final Year Computer Science Student  
-Android Developer | Kotlin | Jetpack Compose
-
----
-*FinFlow — Precision in every penny.*
+FinFlow — Precision in every penny.

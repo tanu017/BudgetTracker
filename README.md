@@ -62,19 +62,25 @@ FinFlow is built on the **MVVM (Model-View-ViewModel)** architecture, emphasizin
 
 ## ⚙️ Installation
 
-1. **Clone the repository:**
-   ```sh
-   git clone [https://github.com/tanu017/BudgetTracker.git](https://github.com/tanu017/BudgetTracker.git)
-   Open in Android Studio:
-Select Open..., then navigate to the cloned folder.
 
-Run:
-Select your emulator and click the Run button.
+1.  **Clone the repository:**
+    ```sh
+    git clone https://github.com/yourusername/FinFlow.git
+    ```
+2.  **Open in Android Studio:**
+    Launch Android Studio and select `Open...`, then navigate to the cloned folder.
+3.  **Sync Project:**
+    Allow Gradle to download dependencies and sync the project.
+4.  **Run:**
+    Select your emulator or physical device and click the **Run** button.
 
-✍️ Author
-Tanushree
-Final Year BCA Student @ Ramaiah College
+---
 
-Junior Software Engineer (Part-Time) | Android Developer
+## ✍️ Author
 
-FinFlow — Precision in every penny.
+**Tanushree**  
+Final Year Computer Science Student  
+Android Developer | Kotlin | Jetpack Compose
+
+---
+*FinFlow — Precision in every penny.*

@@ -20,7 +20,7 @@
 
 | Home & Financial Overview | Detailed Analytics |
 |:---:|:---:|
-| <img src="home_page.jpg" width="300" /> | <img src="home_page2.jpg" width="300" /> |<img src="dashboard.jpg" width="300" /> |
+| <img src="home_page.jpg" width="300" /> |<img src="dashboard.jpg" width="300" /> |
 
 | Smart SMS/Email Parser | Account Management |
 |:---:|:---:|

@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
@@ -25,12 +26,12 @@ import com.example.budgettracker.viewmodel.ChatViewModel
 
 /**
  * ChatScreen - The main UI for the Budget Bot chatbot.
- * Built with Jetpack Compose for a modern look and feel.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(viewModel: ChatViewModel) {
     var inputText by remember { mutableStateOf("") }
+    var showDeleteDialog by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val messages = viewModel.messages
 
@@ -51,10 +52,38 @@ fun ChatScreen(viewModel: ChatViewModel) {
         }
     }
 
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Chat") },
+            text = { Text("Are you sure you want to permanently delete this conversation?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.clearChat()
+                    showDeleteDialog = false
+                }) {
+                    Text("Yes", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("No")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Budget Bot", fontWeight = FontWeight.Bold) },
+                actions = {
+                    if (messages.isNotEmpty()) {
+                        IconButton(onClick = { showDeleteDialog = true }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete Chat")
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -69,17 +98,22 @@ fun ChatScreen(viewModel: ChatViewModel) {
                 .padding(16.dp)
         ) {
             // Chat history list
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = 16.dp)
-            ) {
-                // Correct Composable context inside LazyColumn scope
-                items(messages) { message ->
-                    ChatBubble(message)
+            Box(modifier = Modifier.weight(1f)) {
+                if (messages.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Start a conversation 👋", color = Color.Gray)
+                    }
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(bottom = 16.dp)
+                    ) {
+                        items(messages) { message ->
+                            ChatBubble(message)
+                        }
+                    }
                 }
             }
 
@@ -149,10 +183,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
 @Composable
 fun ChatBubble(message: ChatMessage) {
     val isUser = message.isUser
-    
-    // STEP 1: Fix alignment type mismatch (Use Alignment.Horizontal types)
     val alignment = if (isUser) Alignment.End else Alignment.Start
-    
     val bubbleColor = if (isUser) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer
     val textColor = if (isUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer
     val shape = if (isUser) {

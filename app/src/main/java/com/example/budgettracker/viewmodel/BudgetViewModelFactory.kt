@@ -2,16 +2,14 @@ package com.example.budgettracker.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.example.budgettracker.repository.AccountRepository
-import com.example.budgettracker.repository.CategoryRepository
-import com.example.budgettracker.repository.ReminderRepository
-import com.example.budgettracker.repository.TransactionRepository
+import com.example.budgettracker.repository.*
 
 class BudgetViewModelFactory(
     private val transactionRepository: TransactionRepository,
     private val accountRepository: AccountRepository,
     private val categoryRepository: CategoryRepository,
-    private val reminderRepository: ReminderRepository
+    private val reminderRepository: ReminderRepository,
+    private val chatRepository: ChatRepository
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
@@ -31,6 +29,9 @@ class BudgetViewModelFactory(
             }
             modelClass.isAssignableFrom(RemindersViewModel::class.java) -> {
                 RemindersViewModel(reminderRepository) as T
+            }
+            modelClass.isAssignableFrom(ChatViewModel::class.java) -> {
+                ChatViewModel(transactionRepository, chatRepository) as T
             }
             else -> throw IllegalArgumentException("Unknown ViewModel class")
         }

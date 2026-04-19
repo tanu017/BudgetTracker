@@ -3,8 +3,6 @@ package com.example.budgettracker
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -14,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
@@ -34,21 +33,20 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.budgettracker.data.local.AppDatabase
-import com.example.budgettracker.repository.AccountRepository
-import com.example.budgettracker.repository.CategoryRepository
-import com.example.budgettracker.repository.ReminderRepository
-import com.example.budgettracker.repository.TransactionRepository
+import com.example.budgettracker.repository.*
 import com.example.budgettracker.ui.accounts.AccountsFragment
+import com.example.budgettracker.ui.chatbot.ChatScreen
 import com.example.budgettracker.ui.dashboard.DashboardFragment
 import com.example.budgettracker.ui.home.HomeScreen
 import com.example.budgettracker.ui.security.AppLockGate
 import com.example.budgettracker.ui.transactions.TransactionScreen
 import com.example.budgettracker.viewmodel.BudgetViewModelFactory
+import com.example.budgettracker.viewmodel.ChatViewModel
 import com.example.budgettracker.viewmodel.DashboardViewModel
 
 /**
  * MainActivity - Entry point for FinFlow.
- * Enhanced with premium navigation animations and edge-to-edge support.
+ * Enhanced with premium navigation animations and chatbot integration.
  */
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,6 +65,7 @@ class MainActivity : FragmentActivity() {
 sealed class Screen(val route: String, val labelId: Int, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     object Home : Screen("home", R.string.title_home, Icons.Default.Home)
     object Transactions : Screen("transactions", R.string.title_transactions, Icons.Default.List)
+    object ChatBot : Screen("chatbot", R.string.title_chatbot, Icons.Default.Chat)
     object Accounts : Screen("accounts", R.string.title_accounts, Icons.Default.AccountBalance)
     object Dashboard : Screen("dashboard", R.string.title_dashboard, Icons.Default.Dashboard)
 }
@@ -80,12 +79,14 @@ fun BudgetTrackerApp() {
     val accountRepo = remember { AccountRepository(database.accountDao()) }
     val categoryRepo = remember { CategoryRepository(database.categoryDao()) }
     val reminderRepo = remember { ReminderRepository(database.reminderDao()) }
+    val chatRepo = remember { ChatRepository(database.chatDao()) }
 
-    val factory = BudgetViewModelFactory(transactionRepo, accountRepo, categoryRepo, reminderRepo)
+    val factory = BudgetViewModelFactory(transactionRepo, accountRepo, categoryRepo, reminderRepo, chatRepo)
     val dashboardViewModel: DashboardViewModel = viewModel(factory = factory)
+    val chatViewModel: ChatViewModel = viewModel(factory = factory)
 
     val navController = rememberNavController()
-    val navItems = listOf(Screen.Home, Screen.Transactions, Screen.Accounts, Screen.Dashboard)
+    val navItems = listOf(Screen.Home, Screen.Transactions, Screen.ChatBot, Screen.Accounts, Screen.Dashboard)
 
     Scaffold(
         bottomBar = {
@@ -99,7 +100,6 @@ fun BudgetTrackerApp() {
                 navItems.forEach { screen ->
                     val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
                     
-                    // micro-UX: Animated scaling for selected icon
                     val iconScale by animateFloatAsState(
                         targetValue = if (selected) 1.2f else 1.0f,
                         label = "iconScale"
@@ -129,7 +129,6 @@ fun BudgetTrackerApp() {
             }
         }
     ) { innerPadding ->
-        // Premium transition: Smooth fade between tabs
         NavHost(
             navController = navController,
             startDestination = Screen.Home.route,
@@ -139,6 +138,7 @@ fun BudgetTrackerApp() {
         ) {
             composable(Screen.Home.route) { HomeScreen(viewModel = dashboardViewModel) }
             composable(Screen.Transactions.route) { TransactionScreen() }
+            composable(Screen.ChatBot.route) { ChatScreen(viewModel = chatViewModel) }
             composable(Screen.Accounts.route) { AccountsFragment() }
             composable(Screen.Dashboard.route) { DashboardFragment(viewModel = dashboardViewModel) }
         }

@@ -6,14 +6,8 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import com.example.budgettracker.data.local.dao.AccountDao
-import com.example.budgettracker.data.local.dao.CategoryDao
-import com.example.budgettracker.data.local.dao.ReminderDao
-import com.example.budgettracker.data.local.dao.TransactionDao
-import com.example.budgettracker.data.local.entities.AccountEntity
-import com.example.budgettracker.data.local.entities.CategoryEntity
-import com.example.budgettracker.data.local.entities.ReminderEntity
-import com.example.budgettracker.data.local.entities.TransactionEntity
+import com.example.budgettracker.data.local.dao.*
+import com.example.budgettracker.data.local.entities.*
 
 /**
  * Main Room Database class for the application.
@@ -23,9 +17,10 @@ import com.example.budgettracker.data.local.entities.TransactionEntity
         TransactionEntity::class,
         AccountEntity::class,
         CategoryEntity::class,
-        ReminderEntity::class
+        ReminderEntity::class,
+        ChatMessageEntity::class
     ],
-    version = 4, // Bumped from 3 to 4
+    version = 5, // Bumped from 4 to 5
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -34,6 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun accountDao(): AccountDao
     abstract fun categoryDao(): CategoryDao
     abstract fun reminderDao(): ReminderDao
+    abstract fun chatDao(): ChatDao
 
     companion object {
         @Volatile
@@ -51,34 +47,26 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        /**
-         * Migration from version 3 to 4:
-         * Removes the 'balance' column from 'accounts' table.
-         * SQLite doesn't support DROP COLUMN, so we recreate the table.
-         */
         val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                // 1. Create the new table schema
+                database.execSQL("CREATE TABLE accounts_new (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, accountName TEXT NOT NULL, accountType TEXT NOT NULL)")
+                database.execSQL("INSERT INTO accounts_new (id, accountName, accountType) SELECT id, accountName, accountType FROM accounts")
+                database.execSQL("DROP TABLE accounts")
+                database.execSQL("ALTER TABLE accounts_new RENAME TO accounts")
+            }
+        }
+
+        // Migration from 4 to 5: Added chat_messages table
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("""
-                    CREATE TABLE accounts_new (
+                    CREATE TABLE IF NOT EXISTS chat_messages (
                         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                        accountName TEXT NOT NULL,
-                        accountType TEXT NOT NULL
+                        message TEXT NOT NULL,
+                        isUser INTEGER NOT NULL,
+                        timestamp INTEGER NOT NULL
                     )
                 """.trimIndent())
-
-                // 2. Copy existing data (excluding balance)
-                database.execSQL("""
-                    INSERT INTO accounts_new (id, accountName, accountType)
-                    SELECT id, accountName, accountType
-                    FROM accounts
-                """.trimIndent())
-
-                // 3. Remove old table
-                database.execSQL("DROP TABLE accounts")
-
-                // 4. Rename new table to original name
-                database.execSQL("ALTER TABLE accounts_new RENAME TO accounts")
             }
         }
 
@@ -89,7 +77,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "budget_tracker_db"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build()
                 
                 INSTANCE = instance

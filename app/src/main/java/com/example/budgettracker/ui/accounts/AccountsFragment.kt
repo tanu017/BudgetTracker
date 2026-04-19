@@ -22,10 +22,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.budgettracker.data.local.AppDatabase
 import com.example.budgettracker.data.local.entities.AccountEntity
 import com.example.budgettracker.data.local.entities.TransactionEntity
-import com.example.budgettracker.repository.AccountRepository
-import com.example.budgettracker.repository.CategoryRepository
-import com.example.budgettracker.repository.ReminderRepository
-import com.example.budgettracker.repository.TransactionRepository
+import com.example.budgettracker.repository.*
 import com.example.budgettracker.ui.theme.FinanceColors
 import com.example.budgettracker.viewmodel.AccountsViewModel
 import com.example.budgettracker.viewmodel.BudgetViewModelFactory
@@ -46,18 +43,14 @@ fun AccountsFragment() {
     val transactionRepo = remember { TransactionRepository(database.transactionDao()) }
     val categoryRepo = remember { CategoryRepository(database.categoryDao()) }
     val reminderRepo = remember { ReminderRepository(database.reminderDao()) }
+    val chatRepo = remember { ChatRepository(database.chatDao()) }
 
-    val viewModel: AccountsViewModel = viewModel(
-        factory = BudgetViewModelFactory(
-            transactionRepo, accountRepo, categoryRepo, reminderRepo
-        )
+    val factory = BudgetViewModelFactory(
+        transactionRepo, accountRepo, categoryRepo, reminderRepo, chatRepo
     )
-    
-    val txViewModel: TransactionViewModel = viewModel(
-        factory = BudgetViewModelFactory(
-            transactionRepo, accountRepo, categoryRepo, reminderRepo
-        )
-    )
+
+    val viewModel: AccountsViewModel = viewModel(factory = factory)
+    val txViewModel: TransactionViewModel = viewModel(factory = factory)
 
     val accounts by viewModel.allAccounts.observeAsState(initial = emptyList())
     val transactions by txViewModel.allTransactions.observeAsState(initial = emptyList())
@@ -285,12 +278,13 @@ fun AccountsFragment() {
                     Button(
                         onClick = {
                             val balance = initialBalance.toDoubleOrNull() ?: 0.0
-                            if (accountName.isBlank()) { addAccountError = "Enter name" }
-                            else {
+                            if (accountName.isNotBlank()) {
                                 viewModel.insertAccount(AccountEntity(accountName = accountName, accountType = selectedAccountType))
+                                
+                                // Initial balance entry
                                 if (balance != 0.0) {
                                     txViewModel.insertTransaction(TransactionEntity(
-                                        amount = kotlin.math.abs(balance),
+                                        amount = Math.abs(balance),
                                         type = if (balance > 0) "INCOME" else "EXPENSE",
                                         category = "Initial Balance",
                                         accountName = accountName,
@@ -299,45 +293,50 @@ fun AccountsFragment() {
                                     ))
                                 }
                                 accountName = ""; initialBalance = ""; addAccountError = null
+                            } else {
+                                addAccountError = "Account name is required"
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
                         shape = MaterialTheme.shapes.medium
-                    ) { Text("Create Account") }
+                    ) {
+                        Text("Add Account")
+                    }
+                    
+                    if (addAccountError != null) {
+                        Text(text = addAccountError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
         }
 
-        // 4. ACCOUNTS LIST (With Derived Balances)
-        items(items = accounts, key = { it.id }) { account ->
-            val derivedBalance = BudgetHealthEngine.calculateAccountBalance(account.accountName, transactions)
-            AccountItem(account = account, derivedBalance = derivedBalance, onDelete = { viewModel.deleteAccount(account) })
-        }
-    }
-}
-
-@Composable
-fun AccountItem(account: AccountEntity, derivedBalance: Double, onDelete: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(0.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = CardDefaults.outlinedCardBorder()
-    ) {
-        Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = account.accountName, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
-                Text(text = account.accountType, fontSize = 12.sp, color = Color.Gray)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "₹%.2f".format(derivedBalance),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = if (derivedBalance >= 0) FinanceColors.Income else FinanceColors.Expense,
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-                IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFB71C1C), modifier = Modifier.size(20.dp)) }
+        // 4. ACCOUNTS LIST (Summary view)
+        items(accounts) { account ->
+            val balance = BudgetHealthEngine.calculateAccountBalance(account.accountName, transactions)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { /* Detail View */ }
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(text = account.accountName, fontWeight = FontWeight.Bold)
+                        Text(text = account.accountType, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "₹%.2f".format(balance),
+                            fontWeight = FontWeight.Black,
+                            color = if (balance >= 0) FinanceColors.IncomeGreen else FinanceColors.ExpenseRed
+                        )
+                        IconButton(onClick = { viewModel.deleteAccount(account) }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Gray)
+                        }
+                    }
+                }
             }
         }
     }

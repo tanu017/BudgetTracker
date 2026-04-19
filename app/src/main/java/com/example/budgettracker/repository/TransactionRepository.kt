@@ -10,25 +10,34 @@ import kotlinx.coroutines.flow.Flow
  */
 class TransactionRepository(private val transactionDao: TransactionDao) {
 
-    // Exposes the flow of all transactions from the DAO
     fun getAllTransactions(): Flow<List<TransactionEntity>> = transactionDao.getAllTransactions()
 
-    // Exposes the flow of transactions filtered by type
     fun getTransactionsByType(type: String): Flow<List<TransactionEntity>> = 
         transactionDao.getTransactionsByType(type)
 
-    // Suspended function to insert a transaction via the DAO
     suspend fun insertTransaction(transaction: TransactionEntity) {
         transactionDao.insertTransaction(transaction)
     }
 
-    // Suspended function to update a transaction via the DAO
     suspend fun updateTransaction(transaction: TransactionEntity) {
         transactionDao.updateTransaction(transaction)
     }
 
-    // Suspended function to delete a transaction via the DAO
     suspend fun deleteTransaction(transaction: TransactionEntity) {
         transactionDao.deleteTransaction(transaction)
     }
+
+    suspend fun getTotalByType(type: String): Double? = transactionDao.getTotalByType(type)
+
+    suspend fun getTotalByTypeAndCategory(type: String, category: String): Double? = 
+        transactionDao.getTotalByTypeAndCategory(type, category)
+
+    suspend fun getTotalByTypeAndDateRange(type: String, start: Long, end: Long): Double? =
+        transactionDao.getTotalByTypeAndDateRange(type, start, end)
+
+    suspend fun getTotalByTypeCategoryAndDateRange(type: String, category: String, start: Long, end: Long): Double? =
+        transactionDao.getTotalByTypeCategoryAndDateRange(type, category, start, end)
+
+    suspend fun getTotalExpenses(): Double? = transactionDao.getTotalExpenses()
+    suspend fun getTotalByCategory(category: String): Double? = transactionDao.getTotalByCategory(category)
 }

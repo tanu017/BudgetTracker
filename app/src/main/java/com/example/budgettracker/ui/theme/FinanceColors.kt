@@ -13,4 +13,8 @@ object FinanceColors {
     
     val Background = Color(0xFFF8F9FA)  // Very light gray for breathability
     val Surface = Color(0xFFFFFFFF)
+
+    // Aliases for compatibility
+    val IncomeGreen = Income
+    val ExpenseRed = Expense
 }

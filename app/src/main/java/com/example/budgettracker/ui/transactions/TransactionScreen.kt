@@ -37,12 +37,20 @@ fun TransactionScreen() {
     val context = LocalContext.current
     val database = remember { AppDatabase.getDatabase(context) }
 
+    // Initialize repositories
+    val transactionRepo = remember { TransactionRepository(database.transactionDao()) }
+    val accountRepo = remember { AccountRepository(database.accountDao()) }
+    val categoryRepo = remember { CategoryRepository(database.categoryDao()) }
+    val reminderRepo = remember { ReminderRepository(database.reminderDao()) }
+    val chatRepo = remember { ChatRepository(database.chatDao()) }
+
     val viewModel: TransactionViewModel = viewModel(
         factory = BudgetViewModelFactory(
-            TransactionRepository(database.transactionDao()),
-            AccountRepository(database.accountDao()),
-            CategoryRepository(database.categoryDao()),
-            ReminderRepository(database.reminderDao())
+            transactionRepo,
+            accountRepo,
+            categoryRepo,
+            reminderRepo,
+            chatRepo
         )
     )
 

@@ -4,42 +4,45 @@ import androidx.room.*
 import com.example.budgettracker.data.local.entities.TransactionEntity
 import kotlinx.coroutines.flow.Flow
 
-/**
- * Data Access Object (DAO) for the transactions table.
- * Defines the methods to interact with transaction data in the database.
- */
 @Dao
 interface TransactionDao {
 
-    /**
-     * Inserts a new transaction into the database.
-     * 'suspend' ensures this runs on a background thread.
-     */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransaction(transaction: TransactionEntity)
 
-    /**
-     * Updates an existing transaction details.
-     */
-    @Update
+    @Update(onConflict = OnConflictStrategy.REPLACE)
     suspend fun updateTransaction(transaction: TransactionEntity)
 
-    /**
-     * Deletes a transaction from the database.
-     */
     @Delete
     suspend fun deleteTransaction(transaction: TransactionEntity)
 
-    /**
-     * Returns all transactions sorted by timestamp (latest first).
-     * Using 'Flow' allows the UI to automatically update when data changes.
-     */
     @Query("SELECT * FROM transactions ORDER BY timestamp DESC")
     fun getAllTransactions(): Flow<List<TransactionEntity>>
 
-    /**
-     * Returns transactions filtered by their type (INCOME, EXPENSE, etc.).
-     */
     @Query("SELECT * FROM transactions WHERE type = :type ORDER BY timestamp DESC")
     fun getTransactionsByType(type: String): Flow<List<TransactionEntity>>
+
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = :type")
+    suspend fun getTotalByType(type: String): Double?
+
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = :type AND category LIKE :category")
+    suspend fun getTotalByTypeAndCategory(type: String, category: String): Double?
+
+    /**
+     * Returns total filtered by type and date range.
+     */
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = :type AND timestamp BETWEEN :start AND :end")
+    suspend fun getTotalByTypeAndDateRange(type: String, start: Long, end: Long): Double?
+
+    /**
+     * Returns total filtered by type, category, and date range.
+     */
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = :type AND category LIKE :category AND timestamp BETWEEN :start AND :end")
+    suspend fun getTotalByTypeCategoryAndDateRange(type: String, category: String, start: Long, end: Long): Double?
+
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'EXPENSE'")
+    suspend fun getTotalExpenses(): Double?
+
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'EXPENSE' AND category LIKE :category")
+    suspend fun getTotalByCategory(category: String): Double?
 }

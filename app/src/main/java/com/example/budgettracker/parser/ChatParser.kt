@@ -1,5 +1,6 @@
 package com.example.budgettracker.parser
 
+import android.util.Log
 import com.example.budgettracker.ui.transactions.utils.ChatDateUtils
 import java.text.SimpleDateFormat
 import java.util.*
@@ -27,56 +28,106 @@ sealed class ChatIntent {
  */
 class ChatParser {
     companion object {
+        private const val TAG = "ChatParser"
+
         fun parse(input: String): ChatIntent {
-            val text = input.lowercase().trim()
+            val normalized = normalizeInput(input)
+            Log.d(TAG, "Normalized input: $normalized")
 
             // 1. Handle Greetings
-            val greetings = listOf("hi", "hello", "hey", "hey there")
-            if (greetings.any { text == it || text.startsWith("$it ") }) {
-                return ChatIntent.Greeting
+            if (isGreeting(normalized)) return ChatIntent.Greeting
+
+            // 2. Extract Date context (use original input for date extraction as it handles formats better)
+            val timestamp = extractDate(input.lowercase())
+
+            // 3. Extract Amount
+            val amount = extractAmount(normalized)
+
+            // 4. Prepare text for category extraction (Remove noise and time words)
+            var cleanText = normalized
+            val noiseWords = listOf("today", "yesterday", "tomorrow", "earlier", "now", "tonight", "already", "morning", "evening")
+            noiseWords.forEach { cleanText = cleanText.replace(Regex("\\b$it\\b"), "") }
+            
+            // Remove date patterns like "on 15th april"
+            cleanText = cleanText.replace(Regex("\\bon\\s+\\d+(?:st|nd|rd|th)?\\s+[a-z]+(?:\\s+\\d{4})?"), "")
+            cleanText = cleanText.replace(Regex("\\s+"), " ").trim()
+
+            // 5. Determine Intent and Extract Category
+            val isIncome = listOf("earned", "received", "income", "salary", "got salary").any { normalized.contains(it) }
+            val isExpense = listOf("spent", "spend", "paid", "pay", "buying", "bought", "add expense").any { normalized.contains(it) }
+
+            if (amount != null) {
+                if (isExpense) {
+                    val category = extractCategory(cleanText, amount.toString(), listOf("on", "for"))
+                    return ChatIntent.AddExpense(amount, category.ifEmpty { "General" }, timestamp)
+                } else if (isIncome) {
+                    val category = extractCategory(cleanText, amount.toString(), listOf("from", "as", "salary"))
+                    return ChatIntent.AddIncome(amount, category.ifEmpty { "Salary" }, timestamp)
+                }
             }
 
-            val timestamp = extractDate(text)
-
-            // 2. Handle ADD_INCOME (earned, received, salary)
-            val incomeRegex = Pattern.compile("(?:earned|received|got salary|income|salary)\\s+(\\d+(?:\\.\\d+)?)")
-            val incomeMatcher = incomeRegex.matcher(text)
-            if (incomeMatcher.find()) {
-                val amount = incomeMatcher.group(1)?.toDoubleOrNull() ?: 0.0
-                val catRegex = Pattern.compile("(?:from|as)\\s+([a-z]+)")
-                val catMatcher = catRegex.matcher(text)
-                val category = if (catMatcher.find()) catMatcher.group(1).replaceFirstChar { it.uppercase() } else "Salary"
-                return ChatIntent.AddIncome(amount, category, timestamp)
-            }
-
-            // 3. Handle ADD_EXPENSE (spend, spent, add expense)
-            val addRegex = Pattern.compile("(?:spend|add expense|spent)\\s+(\\d+(?:\\.\\d+)?)\\s+(?:on|for)\\s+([a-z\\s]+?)(?:\\s+on\\s+.*|$)")
-            val addMatcher = addRegex.matcher(text)
-            if (addMatcher.find()) {
-                val amount = addMatcher.group(1)?.toDoubleOrNull() ?: 0.0
-                val category = addMatcher.group(2)?.trim()?.replaceFirstChar { it.uppercase() } ?: "General"
-                return ChatIntent.AddExpense(amount, category, timestamp)
-            }
-
-            // 4. Handle QUERIES (Income vs Expense + Time Range)
-            if (text.contains("how much") || text.contains("total") || text.contains("summary")) {
-                val type = if (text.contains("earn") || text.contains("income") || text.contains("received")) "INCOME" else "EXPENSE"
+            // 6. Handle Queries
+            if (normalized.contains("how much") || normalized.contains("total") || normalized.contains("summary")) {
+                val type = if (normalized.contains("earn") || normalized.contains("income") || normalized.contains("received")) "INCOME" else "EXPENSE"
+                val (range, label) = detectTimeRange(normalized)
+                val category = extractCategory(cleanText, "", listOf("on", "for", "from")).ifEmpty { null }
                 
-                // Time Range Detection
-                val (range, label) = detectTimeRange(text)
-                
-                val categoryRegex = Pattern.compile("(?:on|for|from)\\s+([a-z]+)")
-                val catMatcher = categoryRegex.matcher(text)
-                val category = if (catMatcher.find()) {
-                    val found = catMatcher.group(1)
-                    // Ensure the found "category" isn't actually a month or time keyword
-                    if (isTimeKeyword(found)) null else found.replaceFirstChar { it.uppercase() }
-                } else null
-
-                return ChatIntent.GetSummary(category, type, range.first, range.second, label)
+                val finalCategory = if (category != null && isTimeKeyword(category.lowercase())) null else category
+                return ChatIntent.GetSummary(finalCategory, type, range.first, range.second, label)
             }
 
             return ChatIntent.Unknown
+        }
+
+        private fun normalizeInput(input: String): String {
+            return input.lowercase()
+                .replace(Regex("[₹]|\\brs\\b|\\brupees\\b"), "")
+                .replace(Regex("\\s+"), " ")
+                .trim()
+        }
+
+        private fun isGreeting(text: String): Boolean {
+            val greetings = listOf("hi", "hello", "hey", "hey there")
+            return greetings.any { text == it || text.startsWith("$it ") }
+        }
+
+        private fun extractAmount(text: String): Double? {
+            val match = Regex("""(\d+(?:\.\d+)?)""").find(text)
+            return match?.value?.toDoubleOrNull()
+        }
+
+        private fun extractCategory(text: String, amountStr: String, separators: List<String>): String {
+            // Try extracting after keywords like "on", "for", etc.
+            for (sep in separators) {
+                if (text.contains(" $sep ")) {
+                    val parts = text.split(" $sep ")
+                    if (parts.size > 1) {
+                        return cleanCategoryString(parts.last())
+                    }
+                }
+            }
+            // Fallback: Try extracting after the amount
+            if (amountStr.isNotEmpty()) {
+                val parts = text.split(amountStr)
+                if (parts.size > 1) {
+                    return cleanCategoryString(parts.last())
+                }
+            }
+            return ""
+        }
+
+        private fun cleanCategoryString(raw: String): String {
+            var cleaned = raw.trim()
+            // Remove remaining numbers
+            cleaned = cleaned.replace(Regex("\\b\\d+(?:\\.\\d+)?\\b"), "")
+            // Final noise cleanup
+            val noise = listOf("today", "yesterday", "tomorrow", "earlier", "now", "tonight", "already")
+            noise.forEach { cleaned = cleaned.replace(Regex("\\b$it\\b"), "") }
+            
+            cleaned = cleaned.replace(Regex("\\s+"), " ").trim()
+            
+            if (cleaned.isEmpty()) return ""
+            return cleaned.split(" ").joinToString(" ") { it.replaceFirstChar { char -> char.titlecase(Locale.getDefault()) } }
         }
 
         private fun detectTimeRange(text: String): Pair<Pair<Long, Long>, String> {
@@ -87,21 +138,6 @@ class ChatParser {
                 text.contains("this month") -> ChatDateUtils.getThisMonthRange() to "this month"
                 text.contains("last year") -> ChatDateUtils.getLastYearRange() to "last year"
                 text.contains("this year") -> ChatDateUtils.getThisYearRange() to "this year"
-                
-                // Specific Months
-                text.contains("january") || text.contains("jan") -> ChatDateUtils.getMonthRange("january") to "in January"
-                text.contains("february") || text.contains("feb") -> ChatDateUtils.getMonthRange("february") to "in February"
-                text.contains("march") || text.contains("mar") -> ChatDateUtils.getMonthRange("march") to "in March"
-                text.contains("april") || text.contains("apr") -> ChatDateUtils.getMonthRange("april") to "in April"
-                text.contains("may") -> ChatDateUtils.getMonthRange("may") to "in May"
-                text.contains("june") || text.contains("jun") -> ChatDateUtils.getMonthRange("june") to "in June"
-                text.contains("july") || text.contains("jul") -> ChatDateUtils.getMonthRange("july") to "in July"
-                text.contains("august") || text.contains("aug") -> ChatDateUtils.getMonthRange("august") to "in August"
-                text.contains("september") || text.contains("sep") -> ChatDateUtils.getMonthRange("september") to "in September"
-                text.contains("october") || text.contains("oct") -> ChatDateUtils.getMonthRange("october") to "in October"
-                text.contains("november") || text.contains("nov") -> ChatDateUtils.getMonthRange("november") to "in November"
-                text.contains("december") || text.contains("dec") -> ChatDateUtils.getMonthRange("december") to "in December"
-
                 else -> ChatDateUtils.getThisMonthRange() to "this month"
             }
         }

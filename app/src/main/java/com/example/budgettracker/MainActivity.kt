@@ -37,6 +37,7 @@ import com.example.budgettracker.ui.components.HomeTopBar
 import com.example.budgettracker.ui.dashboard.DashboardFragment
 import com.example.budgettracker.ui.home.HomeScreen
 import com.example.budgettracker.ui.security.AppLockGate
+import com.example.budgettracker.ui.theme.BudgetTrackerTheme
 import com.example.budgettracker.ui.transactions.TransactionScreen
 import com.example.budgettracker.viewmodel.AuthViewModel
 import com.example.budgettracker.viewmodel.BudgetViewModelFactory
@@ -51,8 +52,11 @@ class MainActivity : FragmentActivity() {
         setContent {
             val authViewModel: AuthViewModel = viewModel()
             val userName by authViewModel.userName.collectAsState()
+            val themeMode by authViewModel.themeMode.collectAsState()
 
-            MaterialTheme {
+            BudgetTrackerTheme(
+                darkTheme = themeMode == "dark"
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -63,8 +67,10 @@ class MainActivity : FragmentActivity() {
                         AppLockGate {
                             BudgetTrackerApp(
                                 userName = userName!!, 
+                                currentTheme = themeMode,
                                 onLogout = { authViewModel.clearUser() },
-                                onUpdateName = { authViewModel.saveUserName(it) }
+                                onUpdateName = { newName -> authViewModel.saveUserName(newName) },
+                                onThemeChange = { mode -> authViewModel.setTheme(mode) }
                             )
                         }
                     }
@@ -86,8 +92,10 @@ sealed class Screen(val route: String, val labelId: Int, val icon: androidx.comp
 @Composable
 fun BudgetTrackerApp(
     userName: String, 
+    currentTheme: String,
     onLogout: () -> Unit,
-    onUpdateName: (String) -> Unit
+    onUpdateName: (String) -> Unit,
+    onThemeChange: (String) -> Unit
 ) {
     val context = LocalContext.current
     val database = remember { AppDatabase.getDatabase(context) }
@@ -111,8 +119,8 @@ fun BudgetTrackerApp(
         EditNameDialog(
             currentName = userName,
             onDismiss = { showEditDialog = false },
-            onConfirm = { 
-                onUpdateName(it)
+            onSave = { newName -> 
+                onUpdateName(newName)
                 showEditDialog = false
             }
         )
@@ -124,8 +132,10 @@ fun BudgetTrackerApp(
         topBar = {
             HomeTopBar(
                 name = userName,
+                currentTheme = currentTheme,
                 onEditName = { showEditDialog = true },
-                onLogout = onLogout
+                onLogout = onLogout,
+                onThemeChange = onThemeChange
             )
         },
         bottomBar = {

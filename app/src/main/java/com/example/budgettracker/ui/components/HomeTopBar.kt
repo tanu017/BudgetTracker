@@ -4,9 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ExitToApp
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,8 +18,10 @@ import java.time.LocalTime
 @Composable
 fun HomeTopBar(
     name: String,
+    currentTheme: String,
     onEditName: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onThemeChange: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -51,7 +51,7 @@ fun HomeTopBar(
                 DropdownMenu(
                     expanded = expanded,
                     onDismissRequest = { expanded = false },
-                    modifier = Modifier.width(200.dp).background(MaterialTheme.colorScheme.surface)
+                    modifier = Modifier.width(220.dp).background(MaterialTheme.colorScheme.surface)
                 ) {
                     // Header with name
                     DropdownMenuItem(
@@ -74,6 +74,37 @@ fun HomeTopBar(
                         leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) }
                     )
                     
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    // Theme Selection
+                    DropdownMenuItem(
+                        text = { Text("Light Theme") },
+                        onClick = {
+                            onThemeChange("light")
+                            expanded = false
+                        },
+                        leadingIcon = { Icon(Icons.Default.LightMode, contentDescription = null) },
+                        trailingIcon = {
+                            if (currentTheme == "light") {
+                                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    )
+
+                    DropdownMenuItem(
+                        text = { Text("Dark Theme") },
+                        onClick = {
+                            onThemeChange("dark")
+                            expanded = false
+                        },
+                        leadingIcon = { Icon(Icons.Default.DarkMode, contentDescription = null) },
+                        trailingIcon = {
+                            if (currentTheme == "dark") {
+                                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    )
+
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                     
                     DropdownMenuItem(
@@ -123,41 +154,4 @@ fun getGreeting(name: String): String {
         else -> "🌙"
     }
     return "$greeting, $name $emoji"
-}
-
-@Composable
-fun EditNameDialog(
-    currentName: String,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
-) {
-    var text by remember { mutableStateOf(currentName) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Edit Name") },
-        text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                label = { Text("Your Name") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
-            )
-        },
-        confirmButton = {
-            Button(
-                onClick = { if (text.isNotBlank()) onConfirm(text) },
-                enabled = text.isNotBlank()
-            ) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
 }

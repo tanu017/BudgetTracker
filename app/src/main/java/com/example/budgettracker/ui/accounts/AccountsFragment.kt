@@ -1,8 +1,10 @@
 package com.example.budgettracker.ui.accounts
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -29,10 +31,6 @@ import com.example.budgettracker.viewmodel.BudgetViewModelFactory
 import com.example.budgettracker.viewmodel.TransactionViewModel
 import com.example.budgettracker.ui.transactions.engine.BudgetHealthEngine
 
-/**
- * Accounts Screen - Refactor complete: Now uses a pure Ledger-based SSOT system.
- * Account balances are derived in real-time from the transaction history.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountsFragment() {
@@ -55,26 +53,22 @@ fun AccountsFragment() {
     val accounts by viewModel.allAccounts.observeAsState(initial = emptyList())
     val transactions by txViewModel.allTransactions.observeAsState(initial = emptyList())
 
-    // --- FORM STATE ---
     var accountName by remember { mutableStateOf("") }
     var initialBalance by remember { mutableStateOf("") }
     var selectedAccountType by remember { mutableStateOf("BANK") }
     var addAccountError by remember { mutableStateOf<String?>(null) }
 
-    // --- TRANSFER STATE ---
     var transferAmount by remember { mutableStateOf("") }
     var fromAccount by remember { mutableStateOf<AccountEntity?>(null) }
     var toAccount by remember { mutableStateOf<AccountEntity?>(null) }
     var fromExpanded by remember { mutableStateOf(false) }
     var toExpanded by remember { mutableStateOf(false) }
 
-    // --- DERIVED LEDGER LOGIC ---
     val netWorth: Double = accounts.sumOf { 
         BudgetHealthEngine.calculateAccountBalance(it.accountName, transactions) 
     }
     
     val amountToTransfer = transferAmount.toDoubleOrNull() ?: 0.0
-    
     val fromAccountBalance = fromAccount?.let { 
         BudgetHealthEngine.calculateAccountBalance(it.accountName, transactions) 
     } ?: 0.0
@@ -83,58 +77,176 @@ fun AccountsFragment() {
     
     val transferErrorMessage = when {
         transferAmount.isNotEmpty() && amountToTransfer <= 0 -> "Enter valid amount"
-        hasInsufficientFunds -> "Insufficient funds in ${fromAccount?.accountName}"
+        hasInsufficientFunds -> "Insufficient funds"
         else -> null
     }
 
-    val canTransfer = fromAccount != null && 
-                     toAccount != null && 
-                     amountToTransfer > 0 && 
-                     !hasInsufficientFunds
+    val canTransfer = fromAccount != null && toAccount != null && amountToTransfer > 0 && !hasInsufficientFunds
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(24.dp),
-        contentPadding = PaddingValues(top = 24.dp, bottom = 32.dp)
+    // Removed windowInsetsPadding(WindowInsets.systemBars)
+    Box(
+        modifier = Modifier.fillMaxSize()
     ) {
-        // 1. HERO NET WORTH CARD (Derived)
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.extraLarge,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(top = 16.dp, bottom = 32.dp)
+        ) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(4.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                 ) {
-                    Text(
-                        text = "Net Worth",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
-                    )
-                    Text(
-                        text = "₹%.2f".format(netWorth),
-                        style = MaterialTheme.typography.displayMedium.copy(
-                            fontWeight = FontWeight.ExtraBold
-                        ),
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Total Net Worth",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        )
+                        Text(
+                            text = "₹%.2f".format(netWorth),
+                            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.ExtraBold),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
                 }
             }
-        }
 
-        // 2. MOVE MONEY SECTION (Transfer via Ledger)
-        if (accounts.size >= 2) {
+            if (accounts.size >= 2) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            text = "Money Transfer",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                        
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            elevation = CardDefaults.cardElevation(2.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    ExposedDropdownMenuBox(
+                                        expanded = fromExpanded,
+                                        onExpandedChange = { fromExpanded = !fromExpanded },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        OutlinedTextField(
+                                            value = fromAccount?.accountName ?: "From",
+                                            onValueChange = {},
+                                            readOnly = true,
+                                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = fromExpanded) },
+                                            modifier = Modifier.menuAnchor(),
+                                            shape = RoundedCornerShape(12.dp),
+                                            textStyle = LocalTextStyle.current.copy(fontSize = 14.sp)
+                                        )
+                                        ExposedDropdownMenu(expanded = fromExpanded, onDismissRequest = { fromExpanded = false }) {
+                                            accounts.filter { it != toAccount }.forEach { account ->
+                                                DropdownMenuItem(
+                                                    text = { Text(account.accountName) },
+                                                    onClick = { fromAccount = account; fromExpanded = false }
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    ExposedDropdownMenuBox(
+                                        expanded = toExpanded,
+                                        onExpandedChange = { toExpanded = !toExpanded },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        OutlinedTextField(
+                                            value = toAccount?.accountName ?: "To",
+                                            onValueChange = {},
+                                            readOnly = true,
+                                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = toExpanded) },
+                                            modifier = Modifier.menuAnchor(),
+                                            shape = RoundedCornerShape(12.dp),
+                                            textStyle = LocalTextStyle.current.copy(fontSize = 14.sp)
+                                        )
+                                        ExposedDropdownMenu(expanded = toExpanded, onDismissRequest = { toExpanded = false }) {
+                                            accounts.filter { it != fromAccount }.forEach { account ->
+                                                DropdownMenuItem(
+                                                    text = { Text(account.accountName) },
+                                                    onClick = { toAccount = account; toExpanded = false }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                OutlinedTextField(
+                                    value = transferAmount,
+                                    onValueChange = { transferAmount = it },
+                                    label = { Text("Transfer Amount") },
+                                    isError = transferErrorMessage != null,
+                                    supportingText = { if (transferErrorMessage != null) Text(transferErrorMessage) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+
+                                Button(
+                                    onClick = {
+                                        if (canTransfer) {
+                                            val now = System.currentTimeMillis()
+                                            txViewModel.insertTransaction(TransactionEntity(
+                                                amount = amountToTransfer,
+                                                type = "TRANSFER",
+                                                category = "Transfer",
+                                                accountName = fromAccount!!.accountName,
+                                                source = "TRANSFER",
+                                                timestamp = now,
+                                                relatedAccountName = toAccount!!.accountName,
+                                                transferDirection = "OUT"
+                                            ))
+                                            txViewModel.insertTransaction(TransactionEntity(
+                                                amount = amountToTransfer,
+                                                type = "TRANSFER",
+                                                category = "Transfer",
+                                                accountName = toAccount!!.accountName,
+                                                source = "TRANSFER",
+                                                timestamp = now + 1,
+                                                relatedAccountName = fromAccount!!.accountName,
+                                                transferDirection = "IN"
+                                            ))
+                                            transferAmount = ""; fromAccount = null; toAccount = null
+                                        }
+                                    },
+                                    enabled = canTransfer,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(Icons.Default.SyncAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Transfer Funds")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        text = "Move Money",
+                        text = "Manage Accounts",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(start = 4.dp)
@@ -142,198 +254,86 @@ fun AccountsFragment() {
                     
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        elevation = CardDefaults.cardElevation(0.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
-                        )
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(2.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedTextField(value = accountName, onValueChange = { accountName = it; addAccountError = null }, label = { Text("New Account Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp))
+                            OutlinedTextField(value = initialBalance, onValueChange = { initialBalance = it; addAccountError = null }, label = { Text("Opening Balance (Optional)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp))
+                            
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                ExposedDropdownMenuBox(
-                                    expanded = fromExpanded,
-                                    onExpandedChange = { fromExpanded = !fromExpanded },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    OutlinedTextField(
-                                        value = fromAccount?.accountName ?: "Source",
-                                        onValueChange = {},
-                                        readOnly = true,
-                                        label = { Text("From") },
-                                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = fromExpanded) },
-                                        modifier = Modifier.menuAnchor(),
-                                        shape = MaterialTheme.shapes.medium
+                                listOf("BANK", "WALLET", "CASH").forEach { type ->
+                                    FilterChip(
+                                        selected = selectedAccountType == type, 
+                                        onClick = { selectedAccountType = type }, 
+                                        label = { Text(type, fontSize = 11.sp) }, 
+                                        modifier = Modifier.weight(1f)
                                     )
-                                    ExposedDropdownMenu(expanded = fromExpanded, onDismissRequest = { fromExpanded = false }) {
-                                        accounts.filter { it != toAccount }.forEach { account ->
-                                            DropdownMenuItem(
-                                                text = { Text(account.accountName) },
-                                                onClick = { fromAccount = account; fromExpanded = false }
-                                            )
-                                        }
-                                    }
-                                }
-
-                                ExposedDropdownMenuBox(
-                                    expanded = toExpanded,
-                                    onExpandedChange = { toExpanded = !toExpanded },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    OutlinedTextField(
-                                        value = toAccount?.accountName ?: "Destination",
-                                        onValueChange = {},
-                                        readOnly = true,
-                                        label = { Text("To") },
-                                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = toExpanded) },
-                                        modifier = Modifier.menuAnchor(),
-                                        shape = MaterialTheme.shapes.medium
-                                    )
-                                    ExposedDropdownMenu(expanded = toExpanded, onDismissRequest = { toExpanded = false }) {
-                                        accounts.filter { it != fromAccount }.forEach { account ->
-                                            DropdownMenuItem(
-                                                text = { Text(account.accountName) },
-                                                onClick = { toAccount = account; toExpanded = false }
-                                            )
-                                        }
-                                    }
                                 }
                             }
-
-                            OutlinedTextField(
-                                value = transferAmount,
-                                onValueChange = { transferAmount = it },
-                                label = { Text("Amount") },
-                                isError = transferErrorMessage != null,
-                                supportingText = { if (transferErrorMessage != null) Text(transferErrorMessage) },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                shape = MaterialTheme.shapes.medium
-                            )
 
                             Button(
                                 onClick = {
-                                    if (canTransfer) {
-                                        val now = System.currentTimeMillis()
-                                        // Record double-entry transfer records
-                                        txViewModel.insertTransaction(TransactionEntity(
-                                            amount = amountToTransfer,
-                                            type = "TRANSFER",
-                                            category = "Transfer",
-                                            accountName = fromAccount!!.accountName,
-                                            source = "TRANSFER",
-                                            timestamp = now,
-                                            relatedAccountName = toAccount!!.accountName,
-                                            transferDirection = "OUT"
-                                        ))
-                                        txViewModel.insertTransaction(TransactionEntity(
-                                            amount = amountToTransfer,
-                                            type = "TRANSFER",
-                                            category = "Transfer",
-                                            accountName = toAccount!!.accountName,
-                                            source = "TRANSFER",
-                                            timestamp = now + 1,
-                                            relatedAccountName = fromAccount!!.accountName,
-                                            transferDirection = "IN"
-                                        ))
-                                        transferAmount = ""; fromAccount = null; toAccount = null
+                                    val balance = initialBalance.toDoubleOrNull() ?: 0.0
+                                    if (accountName.isNotBlank()) {
+                                        viewModel.insertAccount(AccountEntity(accountName = accountName, accountType = selectedAccountType))
+                                        if (balance != 0.0) {
+                                            txViewModel.insertTransaction(TransactionEntity(
+                                                amount = Math.abs(balance),
+                                                type = if (balance > 0) "INCOME" else "EXPENSE",
+                                                category = "Initial Balance",
+                                                accountName = accountName,
+                                                source = "MANUAL",
+                                                timestamp = System.currentTimeMillis()
+                                            ))
+                                        }
+                                        accountName = ""; initialBalance = ""; addAccountError = null
+                                    } else {
+                                        addAccountError = "Name required"
                                     }
                                 },
-                                enabled = canTransfer,
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = MaterialTheme.shapes.medium
+                                shape = RoundedCornerShape(12.dp)
                             ) {
-                                Icon(Icons.Default.SyncAlt, contentDescription = null)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Confirm Transfer")
+                                Text("Add Account")
+                            }
+                            
+                            if (addAccountError != null) {
+                                Text(text = addAccountError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }
                 }
             }
-        }
 
-        item { HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant) }
-
-        // 3. ADD ACCOUNT (METADATA ONLY)
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(0.dp),
-                border = CardDefaults.outlinedCardBorder()
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(text = "Add New Account", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                    OutlinedTextField(value = accountName, onValueChange = { accountName = it; addAccountError = null }, label = { Text("Account Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = MaterialTheme.shapes.medium)
-                    OutlinedTextField(value = initialBalance, onValueChange = { initialBalance = it; addAccountError = null }, label = { Text("Initial Balance") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true, shape = MaterialTheme.shapes.medium)
-                    
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("BANK", "WALLET", "CREDIT").forEach { type ->
-                            FilterChip(selected = selectedAccountType == type, onClick = { selectedAccountType = type }, label = { Text(type, fontSize = 10.sp) }, modifier = Modifier.weight(1f))
-                        }
-                    }
-
-                    Button(
-                        onClick = {
-                            val balance = initialBalance.toDoubleOrNull() ?: 0.0
-                            if (accountName.isNotBlank()) {
-                                viewModel.insertAccount(AccountEntity(accountName = accountName, accountType = selectedAccountType))
-                                
-                                // Initial balance entry
-                                if (balance != 0.0) {
-                                    txViewModel.insertTransaction(TransactionEntity(
-                                        amount = Math.abs(balance),
-                                        type = if (balance > 0) "INCOME" else "EXPENSE",
-                                        category = "Initial Balance",
-                                        accountName = accountName,
-                                        source = "MANUAL",
-                                        timestamp = System.currentTimeMillis()
-                                    ))
-                                }
-                                accountName = ""; initialBalance = ""; addAccountError = null
-                            } else {
-                                addAccountError = "Account name is required"
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.medium
-                    ) {
-                        Text("Add Account")
-                    }
-                    
-                    if (addAccountError != null) {
-                        Text(text = addAccountError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
-                    }
-                }
-            }
-        }
-
-        // 4. ACCOUNTS LIST (Summary view)
-        items(accounts) { account ->
-            val balance = BudgetHealthEngine.calculateAccountBalance(account.accountName, transactions)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = { /* Detail View */ }
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            items(accounts) { account ->
+                val balance = BudgetHealthEngine.calculateAccountBalance(account.accountName, transactions)
+                Card(
+                    modifier = Modifier.fillMaxWidth().animateContentSize(),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(1.dp)
                 ) {
-                    Column {
-                        Text(text = account.accountName, fontWeight = FontWeight.Bold)
-                        Text(text = account.accountType, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "₹%.2f".format(balance),
-                            fontWeight = FontWeight.Black,
-                            color = if (balance >= 0) FinanceColors.IncomeGreen else FinanceColors.ExpenseRed
-                        )
-                        IconButton(onClick = { viewModel.deleteAccount(account) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Gray)
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(text = account.accountName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+                            Text(text = account.accountType, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "₹%.2f".format(balance),
+                                fontWeight = FontWeight.Black,
+                                color = if (balance >= 0) FinanceColors.IncomeGreen else FinanceColors.ExpenseRed,
+                                fontSize = 18.sp
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            IconButton(onClick = { viewModel.deleteAccount(account) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f))
+                            }
                         }
                     }
                 }

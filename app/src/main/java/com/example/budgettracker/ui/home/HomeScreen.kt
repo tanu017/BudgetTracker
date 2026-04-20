@@ -1,7 +1,9 @@
 package com.example.budgettracker.ui.home
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
@@ -30,11 +32,9 @@ fun HomeScreen(viewModel: DashboardViewModel) {
     val transactions by viewModel.allTransactions.observeAsState(initial = emptyList())
     val accounts by viewModel.allAccounts.observeAsState(initial = emptyList())
 
-    // Logic Delegation
     val insights = remember(transactions) { InsightsEngine.calculate(transactions) }
     val healthMetrics = remember(transactions) { BudgetHealthEngine.compute(transactions) }
     
-    // Centralized consolidation to remove duplicates from Home
     val consolidatedTransactions = remember(transactions) {
         TransactionConsolidationEngine.consolidate(transactions)
     }
@@ -74,97 +74,122 @@ fun HomeScreen(viewModel: DashboardViewModel) {
         data
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(24.dp),
-        contentPadding = PaddingValues(top = 24.dp, bottom = 32.dp)
+    // Removed windowInsetsPadding(WindowInsets.systemBars)
+    Box(
+        modifier = Modifier.fillMaxSize()
     ) {
-        item {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = greeting,
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = stringResource(R.string.financial_overview),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-            }
-        }
-
-        item {
-            HeroBalanceCard(
-                totalBalance = totalBalance,
-                income = totalIncome,
-                expense = totalExpense,
-                savingsRate = savingsRate
-            )
-        }
-
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(0.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(bottom = 32.dp)
+        ) {
+            item {
+                Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
                     Text(
-                        text = "Monthly spending",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold
+                        text = greeting,
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    val spendingRatio = if (totalIncome > 0) (totalExpense / totalIncome).toFloat().coerceIn(0f, 1f) else 0f
-                    LinearProgressIndicator(
-                        progress = { spendingRatio },
-                        modifier = Modifier.fillMaxWidth().height(8.dp),
-                        strokeCap = StrokeCap.Round
+                    Text(
+                        text = stringResource(R.string.financial_overview),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.secondary
                     )
                 }
             }
-        }
 
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                SmartInsightsCard(insights = insights)
-                HealthInsightsChips(metrics = healthMetrics)
-            }
-        }
-
-        item { AnalyticsCard(data = monthlyData) }
-
-        item {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = stringResource(R.string.recent_transactions),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 12.dp)
+            item {
+                HeroBalanceCard(
+                    totalBalance = totalBalance,
+                    income = totalIncome,
+                    expense = totalExpense,
+                    savingsRate = savingsRate
                 )
-                if (consolidatedTransactions.isEmpty()) {
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().animateContentSize(),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(2.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "Monthly Spending Limit",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        val spendingRatio = if (totalIncome > 0) (totalExpense / totalIncome).toFloat().coerceIn(0f, 1f) else 0f
+                        LinearProgressIndicator(
+                            progress = { spendingRatio },
+                            modifier = Modifier.fillMaxWidth().height(10.dp),
+                            strokeCap = StrokeCap.Round,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                            color = if (spendingRatio > 0.8f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    SmartInsightsCard(insights = insights)
+                    HealthInsightsChips(metrics = healthMetrics)
+                }
+            }
+
+            item { 
+                Box(modifier = Modifier.padding(vertical = 8.dp)) {
+                    AnalyticsCard(data = monthlyData) 
+                }
+            }
+
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                ) {
                     Text(
-                        text = stringResource(R.string.no_records_found),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline
+                        text = stringResource(R.string.recent_transactions),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 12.dp)
                     )
-                } else {
-                    consolidatedTransactions.take(3).forEach { listItem ->
-                        when (listItem) {
-                            is TransactionListItem.Regular -> {
-                                HomeTransactionPreviewItem(transaction = listItem.transaction)
-                            }
-                            is TransactionListItem.Transfer -> {
-                                HomeTransactionPreviewItem(
-                                    transaction = listItem.sourceEntity,
-                                    overrideTitle = "${listItem.fromAccount} → ${listItem.toAccount}",
-                                    isTransfer = true
-                                )
-                            }
+                    if (consolidatedTransactions.isEmpty()) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.no_records_found),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.padding(16.dp)
+                            )
                         }
-                        Spacer(Modifier.height(8.dp))
+                    } else {
+                        consolidatedTransactions.take(4).forEach { listItem ->
+                            when (listItem) {
+                                is TransactionListItem.Regular -> {
+                                    HomeTransactionPreviewItem(transaction = listItem.transaction)
+                                }
+                                is TransactionListItem.Transfer -> {
+                                    HomeTransactionPreviewItem(
+                                        transaction = listItem.sourceEntity,
+                                        overrideTitle = "${listItem.fromAccount} → ${listItem.toAccount}",
+                                        isTransfer = true
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(12.dp))
+                        }
                     }
                 }
             }

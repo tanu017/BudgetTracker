@@ -2,6 +2,7 @@ package com.example.budgettracker.ui.transactions.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.SyncAlt
@@ -19,8 +20,7 @@ import com.example.budgettracker.ui.transactions.utils.TransactionDateUtils
 private val TransferBlue = Color(0xFF2962FF)
 
 /**
- * Reusable Transaction Item component.
- * Supports both standard transactions and consolidated transfers with premium styling.
+ * Updated Transaction Item with consistent STEP 6 Card styling.
  */
 @Composable
 fun TransactionItem(
@@ -33,9 +33,8 @@ fun TransactionItem(
 ) {
     val title = overrideTitle ?: transaction.category
     
-    // Color logic for financial meaning
     val amountColor = when {
-        isTransfer -> MaterialTheme.colorScheme.secondary // Neutralized for transfers
+        isTransfer -> MaterialTheme.colorScheme.secondary
         transaction.type == "INCOME" -> Color(0xFF2E7D32)
         else -> Color(0xFFC62828)
     }
@@ -44,18 +43,18 @@ fun TransactionItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp), // STEP 6
         colors = CardDefaults.cardColors(
             containerColor = if (isTransfer) 
-                MaterialTheme.colorScheme.surfaceContainerHighest 
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) 
             else 
-                MaterialTheme.colorScheme.surfaceVariant
+                MaterialTheme.colorScheme.surface
         ),
-        shape = if (isTransfer) MaterialTheme.shapes.large else MaterialTheme.shapes.medium
+        shape = RoundedCornerShape(16.dp) // STEP 6: Consistent rounded corners
     ) {
         Row(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(12.dp) // STEP 6: Reduced padding as per STEP 4
                 .fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
@@ -66,49 +65,43 @@ fun TransactionItem(
                         imageVector = Icons.Default.SyncAlt,
                         contentDescription = null,
                         tint = TransferBlue,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(20.dp)
                     )
-                    Spacer(Modifier.width(16.dp))
+                    Spacer(Modifier.width(12.dp))
                 }
                 
                 Column {
                     Text(
                         text = title,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = if (isTransfer) TransferBlue else Color.Unspecified
+                        fontSize = 15.sp,
+                        color = if (isTransfer) TransferBlue else MaterialTheme.colorScheme.onSurface
                     )
                     
-                    val detailText = if (isTransfer) {
-                        "Internal Transfer • ${TransactionDateUtils.formatDate(transaction.timestamp)}"
-                    } else {
-                        "${transaction.type} • ${TransactionDateUtils.formatDate(transaction.timestamp)}"
-                    }
-                    
                     Text(
-                        text = detailText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        text = if (isTransfer) "Transfer" else transaction.type,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
                 }
             }
             
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "₹%.2f".format(transaction.amount),
+                    text = "₹%.0f".format(transaction.amount),
                     fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
+                    fontSize = 16.sp,
                     color = amountColor,
-                    modifier = Modifier.padding(end = if (showDelete) 8.dp else 0.dp)
+                    modifier = Modifier.padding(end = if (showDelete) 4.dp else 0.dp)
                 )
                 
                 if (showDelete) {
-                    IconButton(onClick = onDelete) {
+                    IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Delete",
-                            tint = Color(0xFFB71C1C),
-                            modifier = Modifier.size(20.dp)
+                            tint = Color(0xFFB71C1C).copy(alpha = 0.8f),
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }

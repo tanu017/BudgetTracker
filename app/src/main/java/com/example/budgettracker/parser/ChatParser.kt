@@ -34,25 +34,18 @@ class ChatParser {
             val normalized = normalizeInput(input)
             Log.d(TAG, "Normalized input: $normalized")
 
-            // 1. Handle Greetings
             if (isGreeting(normalized)) return ChatIntent.Greeting
 
-            // 2. Extract Date context (use original input for date extraction as it handles formats better)
             val timestamp = extractDate(input.lowercase())
-
-            // 3. Extract Amount
             val amount = extractAmount(normalized)
 
-            // 4. Prepare text for category extraction (Remove noise and time words)
             var cleanText = normalized
             val noiseWords = listOf("today", "yesterday", "tomorrow", "earlier", "now", "tonight", "already", "morning", "evening")
             noiseWords.forEach { cleanText = cleanText.replace(Regex("\\b$it\\b"), "") }
             
-            // Remove date patterns like "on 15th april"
             cleanText = cleanText.replace(Regex("\\bon\\s+\\d+(?:st|nd|rd|th)?\\s+[a-z]+(?:\\s+\\d{4})?"), "")
             cleanText = cleanText.replace(Regex("\\s+"), " ").trim()
 
-            // 5. Determine Intent and Extract Category
             val isIncome = listOf("earned", "received", "income", "salary", "got salary").any { normalized.contains(it) }
             val isExpense = listOf("spent", "spend", "paid", "pay", "buying", "bought", "add expense").any { normalized.contains(it) }
 
@@ -66,7 +59,6 @@ class ChatParser {
                 }
             }
 
-            // 6. Handle Queries
             if (normalized.contains("how much") || normalized.contains("total") || normalized.contains("summary")) {
                 val type = if (normalized.contains("earn") || normalized.contains("income") || normalized.contains("received")) "INCOME" else "EXPENSE"
                 val (range, label) = detectTimeRange(normalized)
@@ -97,37 +89,50 @@ class ChatParser {
         }
 
         private fun extractCategory(text: String, amountStr: String, separators: List<String>): String {
-            // Try extracting after keywords like "on", "for", etc.
             for (sep in separators) {
                 if (text.contains(" $sep ")) {
                     val parts = text.split(" $sep ")
                     if (parts.size > 1) {
-                        return cleanCategoryString(parts.last())
+                        return cleanCategory(parts.last())
                     }
                 }
             }
-            // Fallback: Try extracting after the amount
             if (amountStr.isNotEmpty()) {
                 val parts = text.split(amountStr)
                 if (parts.size > 1) {
-                    return cleanCategoryString(parts.last())
+                    return cleanCategory(parts.last())
                 }
             }
             return ""
         }
 
-        private fun cleanCategoryString(raw: String): String {
-            var cleaned = raw.trim()
-            // Remove remaining numbers
-            cleaned = cleaned.replace(Regex("\\b\\d+(?:\\.\\d+)?\\b"), "")
-            // Final noise cleanup
-            val noise = listOf("today", "yesterday", "tomorrow", "earlier", "now", "tonight", "already")
-            noise.forEach { cleaned = cleaned.replace(Regex("\\b$it\\b"), "") }
+        /**
+         * Cleans category strings by removing noise words and formatting to Title Case.
+         * Implementation for STEP 5.
+         */
+        fun cleanCategory(input: String): String {
+            var cleaned = input.trim().lowercase()
             
+            // 1. Remove noise/time words
+            val noiseWords = listOf("today", "yesterday", "tomorrow", "earlier", "now", "tonight", "already", "morning", "evening")
+            noiseWords.forEach { word ->
+                cleaned = cleaned.replace(Regex("\\b$word\\b"), "")
+            }
+
+            // 2. Remove digits
+            cleaned = cleaned.replace(Regex("\\d+"), "")
+
+            // 3. Remove multiple spaces
             cleaned = cleaned.replace(Regex("\\s+"), " ").trim()
-            
+
             if (cleaned.isEmpty()) return ""
-            return cleaned.split(" ").joinToString(" ") { it.replaceFirstChar { char -> char.titlecase(Locale.getDefault()) } }
+
+            // 4. Convert to Clean Title Case (e.g., "ice cream" -> "Ice Cream")
+            return cleaned.split(" ")
+                .filter { it.isNotBlank() }
+                .joinToString(" ") { word ->
+                    word.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+                }
         }
 
         private fun detectTimeRange(text: String): Pair<Pair<Long, Long>, String> {

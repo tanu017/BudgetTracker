@@ -1,12 +1,18 @@
 package com.example.budgettracker.ui.transactions
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
@@ -15,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.budgettracker.data.local.AppDatabase
@@ -27,17 +34,12 @@ import com.example.budgettracker.ui.transactions.model.TransactionListItem
 import com.example.budgettracker.ui.transactions.engine.TransactionConsolidationEngine
 import com.example.budgettracker.parser.toTransactionEntity
 
-/**
- * Transaction Screen - Focused hub for all transaction management.
- * Optimized with centralized consolidation and SSOT ledger logic.
- */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun TransactionScreen() {
     val context = LocalContext.current
     val database = remember { AppDatabase.getDatabase(context) }
 
-    // Initialize repositories
     val transactionRepo = remember { TransactionRepository(database.transactionDao()) }
     val accountRepo = remember { AccountRepository(database.accountDao()) }
     val categoryRepo = remember { CategoryRepository(database.categoryDao()) }
@@ -56,20 +58,18 @@ fun TransactionScreen() {
 
     val transactions by viewModel.allTransactions.observeAsState(initial = emptyList())
 
-    // --- UI State ---
     var selectedTypeFilter by remember { mutableStateOf("ALL") }
     var selectedCategoryFilter by remember { mutableStateOf("ALL") }
     var searchQuery by remember { mutableStateOf("") }
     var showEmailParserDialog by remember { mutableStateOf(false) }
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
     var collapsedSections by rememberSaveable { mutableStateOf(listOf<Long>()) }
+    var isAddFormVisible by rememberSaveable { mutableStateOf(false) }
 
-    // --- Logic: Use Centralized Consolidation Engine ---
     val consolidatedTransactions = remember(transactions) {
         TransactionConsolidationEngine.consolidate(transactions)
     }
 
-    // --- Logic: Filter and Group the consolidated list ---
     val filteredGroupedTransactions = remember(consolidatedTransactions, selectedTypeFilter, selectedCategoryFilter, searchQuery) {
         consolidatedTransactions
             .filter { listItem ->
@@ -81,9 +81,7 @@ fun TransactionScreen() {
                         matchesType && matchesCategory && matchesSearch
                     }
                     is TransactionListItem.Transfer -> {
-                        // Transfers are shown if type filter is ALL or specifically TRANSFER
                         val matchesType = selectedTypeFilter == "ALL" || selectedTypeFilter == "TRANSFER"
-                        // Transfers typically use a specific category like "Transfer"
                         val matchesCategory = selectedCategoryFilter == "ALL" || selectedCategoryFilter == "Transfer"
                         val matchesSearch = "${listItem.fromAccount} ${listItem.toAccount}".contains(searchQuery, ignoreCase = true)
                         matchesType && matchesCategory && matchesSearch
@@ -97,13 +95,11 @@ fun TransactionScreen() {
         listOf("ALL") + transactions.map { it.category }.distinct().sorted()
     }
 
-    // Daily totals (Correctly ignores TRANSFERS to prevent metric inflation)
     val todayStart = remember { TransactionDateUtils.startOfDay(System.currentTimeMillis()) }
     val todayItems = consolidatedTransactions.filter { TransactionDateUtils.startOfDay(it.timestamp) == todayStart }
     val todaySpent = todayItems.filter { it is TransactionListItem.Regular && it.transaction.type == "EXPENSE" }.sumOf { it.amount }
     val todayEarned = todayItems.filter { it is TransactionListItem.Regular && it.transaction.type == "INCOME" }.sumOf { it.amount }
 
-    // --- Dialogs ---
     if (showEmailParserDialog) {
         EmailParserDialog(
             onDismiss = { showEmailParserDialog = false },
@@ -125,79 +121,146 @@ fun TransactionScreen() {
         )
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp)
+    // Removed windowInsetsPadding(WindowInsets.systemBars) as edge-to-edge is disabled
+    Box(
+        modifier = Modifier.fillMaxSize()
     ) {
-        item { AddTransactionForm(onSave = { viewModel.insertTransaction(it) }) }
-        item { TransactionActionRow(onPasteClick = { showEmailParserDialog = true }) }
-
-        stickyHeader {
-            Column(modifier = Modifier.background(MaterialTheme.colorScheme.surface)) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp)
+        ) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().animateContentSize(),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(2.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
-                    Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(text = "Today spent: ₹%.0f".format(todaySpent), style = MaterialTheme.typography.labelMedium, color = Color(0xFFC62828))
-                        Text(text = "Today earned: ₹%.0f".format(todayEarned), style = MaterialTheme.typography.labelMedium, color = Color(0xFF2E7D32))
-                    }
-                }
-                TransactionFilterHeader(searchQuery, { searchQuery = it }, selectedTypeFilter, { selectedTypeFilter = it }, categories, selectedCategoryFilter, { selectedCategoryFilter = it })
-            }
-        }
-
-        if (filteredGroupedTransactions.isEmpty()) {
-            item { EmptyTransactionsState() }
-        } else {
-            filteredGroupedTransactions.forEach { (date, itemsForDate) ->
-                val isCollapsed = collapsedSections.contains(date)
-                stickyHeader {
-                    Surface(
-                        modifier = Modifier.clickable { 
-                            collapsedSections = if (isCollapsed) collapsedSections.filter { it != date } else collapsedSections + date
-                        },
-                        color = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 2.dp
-                    ) {
-                        DateHeader(date = "${TransactionDateUtils.formatHeaderDate(date)} (${itemsForDate.size})", isExpanded = !isCollapsed)
-                    }
-                }
-
-                if (!isCollapsed) {
-                    items(items = itemsForDate, key = { listItem -> 
-                        when(listItem) {
-                            is TransactionListItem.Regular -> "reg_${listItem.transaction.id}"
-                            is TransactionListItem.Transfer -> "trf_${listItem.id}"
-                        }
-                    }) { listItem ->
-                        // REQUIRED REFACTOR: Explicit when(listItem) pattern
-                        // Ensuring proper mapping of fromAccount -> toAccount and audit-trail integrity
-                        when (listItem) {
-                            is TransactionListItem.Regular -> {
-                                TransactionItem(
-                                    transaction = listItem.transaction,
-                                    onDelete = { viewModel.deleteTransaction(listItem.transaction) },
-                                    onClick = { editingTransaction = listItem.transaction },
-                                    showDelete = true
+                    Column {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { isAddFormVisible = !isAddFormVisible }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = "Add New Record",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             }
-                            is TransactionListItem.Transfer -> {
-                                TransactionItem(
-                                    transaction = listItem.sourceEntity,
-                                    onDelete = {
-                                        // Complete Flow: Managed deletion of both matching records
-                                        viewModel.deleteTransaction(listItem.sourceEntity)
-                                        viewModel.deleteTransaction(listItem.destinationEntity)
-                                    },
-                                    onClick = {}, // Transfers are generally non-editable directly
-                                    overrideTitle = "${listItem.fromAccount} → ${listItem.toAccount}",
-                                    isTransfer = true,
-                                    showDelete = true
-                                )
+                            Icon(
+                                if (isAddFormVisible) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                contentDescription = null
+                            )
+                        }
+                        if (isAddFormVisible) {
+                            Divider(modifier = Modifier.padding(horizontal = 16.dp))
+                            Box(modifier = Modifier.padding(12.dp)) {
+                                AddTransactionForm(onSave = { 
+                                    viewModel.insertTransaction(it)
+                                    isAddFormVisible = false
+                                })
+                            }
+                        }
+                    }
+                }
+            }
+
+            item { TransactionActionRow(onPasteClick = { showEmailParserDialog = true }) }
+
+            stickyHeader {
+                Column(
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(vertical = 8.dp)
+                ) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column {
+                                Text("Spent Today", style = MaterialTheme.typography.labelSmall)
+                                Text("₹%.0f".format(todaySpent), style = MaterialTheme.typography.titleMedium, color = Color(0xFFC62828), fontWeight = FontWeight.Bold)
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("Earned Today", style = MaterialTheme.typography.labelSmall)
+                                Text("₹%.0f".format(todayEarned), style = MaterialTheme.typography.titleMedium, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    TransactionFilterHeader(
+                        searchQuery, 
+                        { searchQuery = it }, 
+                        selectedTypeFilter, 
+                        { selectedTypeFilter = it }, 
+                        categories, 
+                        selectedCategoryFilter, 
+                        { selectedCategoryFilter = it }
+                    )
+                }
+            }
+
+            if (filteredGroupedTransactions.isEmpty()) {
+                item { EmptyTransactionsState() }
+            } else {
+                filteredGroupedTransactions.forEach { (date, itemsForDate) ->
+                    val isCollapsed = collapsedSections.contains(date)
+                    stickyHeader {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { 
+                                    collapsedSections = if (isCollapsed) collapsedSections.filter { it != date } else collapsedSections + date
+                                },
+                            color = MaterialTheme.colorScheme.surface,
+                            tonalElevation = 1.dp
+                        ) {
+                            DateHeader(date = "${TransactionDateUtils.formatHeaderDate(date)} (${itemsForDate.size})", isExpanded = !isCollapsed)
+                        }
+                    }
+
+                    if (!isCollapsed) {
+                        items(items = itemsForDate, key = { listItem -> 
+                            when(listItem) {
+                                is TransactionListItem.Regular -> "reg_${listItem.transaction.id}"
+                                is TransactionListItem.Transfer -> "trf_${listItem.id}"
+                            }
+                        }) { listItem ->
+                            when (listItem) {
+                                is TransactionListItem.Regular -> {
+                                    TransactionItem(
+                                        transaction = listItem.transaction,
+                                        onDelete = { viewModel.deleteTransaction(listItem.transaction) },
+                                        onClick = { editingTransaction = listItem.transaction },
+                                        showDelete = true
+                                    )
+                                }
+                                is TransactionListItem.Transfer -> {
+                                    TransactionItem(
+                                        transaction = listItem.sourceEntity,
+                                        onDelete = {
+                                            viewModel.deleteTransaction(listItem.sourceEntity)
+                                            viewModel.deleteTransaction(listItem.destinationEntity)
+                                        },
+                                        onClick = {},
+                                        overrideTitle = "${listItem.fromAccount} → ${listItem.toAccount}",
+                                        isTransfer = true,
+                                        showDelete = true
+                                    )
+                                }
                             }
                         }
                     }

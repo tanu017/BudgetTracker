@@ -2,14 +2,12 @@ package com.example.budgettracker
 
 import android.os.Bundle
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Chat
@@ -22,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
@@ -44,19 +43,27 @@ import com.example.budgettracker.viewmodel.BudgetViewModelFactory
 import com.example.budgettracker.viewmodel.ChatViewModel
 import com.example.budgettracker.viewmodel.DashboardViewModel
 
-/**
- * MainActivity - Entry point for FinFlow.
- * Enhanced with premium navigation animations and chatbot integration.
- */
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        
         super.onCreate(savedInstanceState)
+        
+        // STEP 2 — Ensure default system behavior
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+        
         setContent {
             AppLockGate {
-                BudgetTrackerApp()
+                // STEP 3 — Fix Compose root layout
+                Scaffold(
+                    modifier = Modifier.fillMaxSize()
+                ) { innerPadding ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding)
+                    ) {
+                        BudgetTrackerApp()
+                    }
+                }
             }
         }
     }
@@ -91,8 +98,9 @@ fun BudgetTrackerApp() {
     Scaffold(
         bottomBar = {
             NavigationBar(
-                modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars),
-                tonalElevation = 8.dp
+                modifier = Modifier.padding(top = 4.dp), // Removed windowInsetsPadding
+                tonalElevation = 4.dp,
+                containerColor = MaterialTheme.colorScheme.surface
             ) {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentDestination = navBackStackEntry?.destination
@@ -101,7 +109,7 @@ fun BudgetTrackerApp() {
                     val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
                     
                     val iconScale by animateFloatAsState(
-                        targetValue = if (selected) 1.2f else 1.0f,
+                        targetValue = if (selected) 1.15f else 1.0f,
                         label = "iconScale"
                     )
 
@@ -113,7 +121,13 @@ fun BudgetTrackerApp() {
                                 modifier = Modifier.scale(iconScale)
                             ) 
                         },
-                        label = { Text(stringResource(screen.labelId)) },
+                        label = { 
+                            Text(
+                                stringResource(screen.labelId),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                            ) 
+                        },
                         selected = selected,
                         onClick = {
                             navController.navigate(screen.route) {
@@ -123,7 +137,14 @@ fun BudgetTrackerApp() {
                                 launchSingleTop = true
                                 restoreState = true
                             }
-                        }
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                        )
                     )
                 }
             }
@@ -132,7 +153,7 @@ fun BudgetTrackerApp() {
         NavHost(
             navController = navController,
             startDestination = Screen.Home.route,
-            modifier = Modifier.padding(innerPadding),
+            modifier = Modifier.padding(innerPadding), // Use full innerPadding
             enterTransition = { fadeIn() },
             exitTransition = { fadeOut() }
         ) {

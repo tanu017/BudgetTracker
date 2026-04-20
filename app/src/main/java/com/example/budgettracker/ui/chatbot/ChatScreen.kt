@@ -12,6 +12,7 @@ import android.speech.SpeechRecognizer
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -44,7 +45,6 @@ fun ChatScreen(viewModel: ChatViewModel) {
     val listState = rememberLazyListState()
     val messages = viewModel.messages
 
-    // Modern ActivityResultLauncher for Speech
     val speechLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -52,7 +52,6 @@ fun ChatScreen(viewModel: ChatViewModel) {
             val data = result.data
             val results = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
             val spokenText = results?.firstOrNull() ?: ""
-
             if (spokenText.isNotEmpty()) {
                 inputText = spokenText
             }
@@ -87,6 +86,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
     }
 
     Scaffold(
+        modifier = Modifier.fillMaxSize(), // Removed windowInsetsPadding(WindowInsets.systemBars)
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Budget Bot", fontWeight = FontWeight.Bold) },
@@ -109,6 +109,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(16.dp)
+                .animateContentSize()
         ) {
             Box(modifier = Modifier.weight(1f)) {
                 if (messages.isEmpty()) {
@@ -119,7 +120,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(bottom = 16.dp)
                     ) {
                         items(messages) { message ->
@@ -129,14 +130,17 @@ fun ChatScreen(viewModel: ChatViewModel) {
                 }
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
             Surface(
-                tonalElevation = 2.dp,
-                shadowElevation = 4.dp,
-                shape = RoundedCornerShape(24.dp),
-                modifier = Modifier.fillMaxWidth()
+                tonalElevation = 3.dp,
+                shadowElevation = 2.dp,
+                shape = RoundedCornerShape(28.dp),
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surface
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = {
@@ -162,11 +166,13 @@ fun ChatScreen(viewModel: ChatViewModel) {
                         )
                     }
 
+                    Spacer(modifier = Modifier.width(8.dp))
+
                     TextField(
                         value = inputText,
                         onValueChange = { inputText = it },
                         modifier = Modifier.weight(1f),
-                        placeholder = { Text("Ask about expenses...") },
+                        placeholder = { Text("Ask about expenses...", fontSize = 14.sp) },
                         colors = TextFieldDefaults.colors(
                             focusedContainerColor = Color.Transparent,
                             unfocusedContainerColor = Color.Transparent,
@@ -174,24 +180,66 @@ fun ChatScreen(viewModel: ChatViewModel) {
                             focusedIndicatorColor = Color.Transparent,
                             unfocusedIndicatorColor = Color.Transparent,
                         ),
-                        maxLines = 3
+                        maxLines = 4
                     )
+
+                    Spacer(modifier = Modifier.width(8.dp))
 
                     IconButton(
                         onClick = {
-                            viewModel.sendMessage(inputText)
-                            inputText = ""
+                            if (inputText.isNotBlank()) {
+                                viewModel.sendMessage(inputText)
+                                inputText = ""
+                            }
                         },
-                        enabled = inputText.isNotBlank()
+                        enabled = inputText.isNotBlank(),
+                        colors = IconButtonDefaults.iconButtonColors(
+                            contentColor = MaterialTheme.colorScheme.primary,
+                            disabledContentColor = Color.Gray
+                        )
                     ) {
                         Icon(
                             imageVector = Icons.Default.Send,
-                            contentDescription = "Send",
-                            tint = if (inputText.isNotBlank()) MaterialTheme.colorScheme.primary else Color.Gray
+                            contentDescription = "Send"
                         )
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun ChatBubble(message: ChatMessage) {
+    val isUser = message.isUser
+    val alignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart
+    val bubbleColor = if (isUser) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer
+    val textColor = if (isUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer
+    val shape = if (isUser) {
+        RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp)
+    } else {
+        RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp)
+    }
+
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = alignment
+    ) {
+        Surface(
+            color = bubbleColor,
+            shape = shape,
+            tonalElevation = 2.dp,
+            modifier = Modifier
+                .fillMaxWidth(0.75f)
+                .animateContentSize()
+        ) {
+            Text(
+                text = message.message,
+                modifier = Modifier.padding(12.dp),
+                color = textColor,
+                fontSize = 15.sp,
+                lineHeight = 20.sp
+            )
         }
     }
 }
@@ -256,36 +304,5 @@ private fun startVoiceInput(
         startSpeechRecognizer(context, onResult)
     } catch (e: Exception) {
         startSpeechRecognizer(context, onResult)
-    }
-}
-
-@Composable
-fun ChatBubble(message: ChatMessage) {
-    val isUser = message.isUser
-    val alignment = if (isUser) Alignment.End else Alignment.Start
-    val bubbleColor = if (isUser) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer
-    val textColor = if (isUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer
-    val shape = if (isUser) {
-        RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp)
-    } else {
-        RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp)
-    }
-
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = alignment
-    ) {
-        Surface(
-            color = bubbleColor,
-            shape = shape,
-            tonalElevation = 1.dp
-        ) {
-            Text(
-                text = message.message,
-                modifier = Modifier.padding(12.dp),
-                color = textColor,
-                fontSize = 15.sp
-            )
-        }
     }
 }

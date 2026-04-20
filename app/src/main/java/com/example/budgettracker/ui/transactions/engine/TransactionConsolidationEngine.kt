@@ -13,12 +13,14 @@ object TransactionConsolidationEngine {
         transactions: List<TransactionEntity>
     ): List<TransactionListItem> {
         val result = mutableListOf<TransactionListItem>()
-        val visited = mutableSetOf<Long>()
+        // STEP 1 & 4 — Standardized visited set to String for UUID support
+        val visited = mutableSetOf<String>()
 
         // Ensure we process latest transactions first
         val sorted = transactions.sortedByDescending { it.timestamp }
 
         for (tx in sorted) {
+            // STEP 2 — tx.id is now a String
             if (visited.contains(tx.id)) continue
 
             if (tx.type == "TRANSFER") {

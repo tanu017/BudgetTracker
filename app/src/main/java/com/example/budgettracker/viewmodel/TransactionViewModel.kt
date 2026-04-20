@@ -1,5 +1,6 @@
 package com.example.budgettracker.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.*
 import com.example.budgettracker.data.local.entities.AccountEntity
 import com.example.budgettracker.data.local.entities.TransactionEntity
@@ -61,8 +62,10 @@ class TransactionViewModel(
 
         val newBalance = if (transaction.type == "INCOME") {
             account.balance + transaction.amount
-        } else {
+        } else if (transaction.type == "EXPENSE") {
             account.balance - transaction.amount
+        } else {
+            account.balance
         }
 
         accountRepository.updateAccount(account.copy(balance = newBalance))
@@ -136,6 +139,9 @@ class TransactionViewModel(
     }
 
     fun deleteTransaction(transaction: TransactionEntity) = viewModelScope.launch {
+        // STEP 7 — Debug check
+        Log.d("DELETE_DEBUG", "Deleting transaction ID: ${transaction.id}")
+        
         // Reverse balance effect when deleting
         val accounts = accountRepository.getAllAccounts().first()
         val account = accounts.find { it.id == transaction.accountId } ?: return@launch

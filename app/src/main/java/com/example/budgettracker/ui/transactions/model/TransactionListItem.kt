@@ -16,7 +16,7 @@ sealed class TransactionListItem {
     }
 
     data class Transfer(
-        val id: Long,
+        val id: String, // Changed from Long to String to support UUIDs
         override val amount: Double,
         val fromAccount: String,
         val toAccount: String,

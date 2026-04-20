@@ -2,6 +2,7 @@ package com.example.budgettracker.data.local.entities
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import java.util.UUID
 
 /**
  * Represents a single financial transaction.
@@ -9,8 +10,8 @@ import androidx.room.PrimaryKey
  */
 @Entity(tableName = "transactions")
 data class TransactionEntity(
-    @PrimaryKey(autoGenerate = true)
-    val id: Long = 0, // Unique ID for each transaction, auto-incremented by the database
+    @PrimaryKey
+    val id: String = UUID.randomUUID().toString(), // STEP 2 — Standardized to non-null unique String ID
 
     val amount: Double, // The monetary value of the transaction
     

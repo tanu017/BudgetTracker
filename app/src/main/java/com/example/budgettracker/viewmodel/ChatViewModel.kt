@@ -20,7 +20,8 @@ import kotlinx.coroutines.launch
  */
 class ChatViewModel(
     private val transactionRepository: TransactionRepository,
-    private val chatRepository: ChatRepository
+    private val chatRepository: ChatRepository,
+    private val transactionViewModel: TransactionViewModel // Added TransactionViewModel to standardize insertion
 ) : ViewModel() {
 
     // Internal list for immediate UI updates
@@ -83,7 +84,8 @@ class ChatViewModel(
                     source = "CHATBOT",
                     timestamp = intent.timestamp
                 )
-                transactionRepository.insertTransaction(entity)
+                // STEP 1 & 8 — Use transactionViewModel for standardized insertion
+                transactionViewModel.insertTransaction(entity)
                 val dateStr = formatTimestamp(intent.timestamp)
                 saveAndDisplayBotMessage("✅ Added ₹${intent.amount} as ${intent.category} on $dateStr.")
             }
@@ -98,7 +100,8 @@ class ChatViewModel(
                     source = "CHATBOT",
                     timestamp = intent.timestamp
                 )
-                transactionRepository.insertTransaction(entity)
+                // STEP 1 & 8 — Use transactionViewModel for standardized insertion
+                transactionViewModel.insertTransaction(entity)
                 val dateStr = formatTimestamp(intent.timestamp)
                 saveAndDisplayBotMessage("✅ Recorded ₹${intent.amount} for ${intent.category} on $dateStr.")
             }

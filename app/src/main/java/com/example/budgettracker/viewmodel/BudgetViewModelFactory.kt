@@ -29,9 +29,10 @@ class BudgetViewModelFactory(
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        val transactionViewModel = TransactionViewModel(transactionRepository, accountRepository)
         return when {
             modelClass.isAssignableFrom(TransactionViewModel::class.java) -> {
-                TransactionViewModel(transactionRepository, accountRepository) as T
+                transactionViewModel as T
             }
             modelClass.isAssignableFrom(AccountsViewModel::class.java) -> {
                 AccountsViewModel(accountRepository) as T
@@ -46,7 +47,7 @@ class BudgetViewModelFactory(
                 RemindersViewModel(reminderRepository) as T
             }
             modelClass.isAssignableFrom(ChatViewModel::class.java) -> {
-                ChatViewModel(transactionRepository, chatRepository) as T
+                ChatViewModel(transactionRepository, chatRepository, transactionViewModel) as T
             }
             else -> throw IllegalArgumentException("Unknown ViewModel class")
         }

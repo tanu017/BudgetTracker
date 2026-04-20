@@ -31,7 +31,7 @@ import com.example.budgettracker.data.local.entities.TransactionEntity
 import com.example.budgettracker.viewmodel.DashboardViewModel
 import com.example.budgettracker.ui.transactions.engine.TransactionConsolidationEngine
 import com.example.budgettracker.ui.transactions.model.TransactionListItem
-import com.example.budgettracker.ui.transactions.components.TransactionItem
+import com.example.budgettracker.ui.transactions.utils.TransactionDateUtils
 import com.example.budgettracker.ui.dashboard.components.MonthlyTrendChart
 import com.example.budgettracker.ui.dashboard.components.CategoryPieChart
 import com.example.budgettracker.ui.dashboard.components.AccountBalanceChart
@@ -48,6 +48,7 @@ fun DashboardFragment(viewModel: DashboardViewModel) {
     val accounts by viewModel.allAccounts.observeAsState(initial = emptyList())
     val monthlyTrend by viewModel.monthlyTrend.observeAsState(initial = emptyList())
     val categoryDistribution by viewModel.categoryDistribution.observeAsState(initial = emptyList())
+    val topTransactions by viewModel.topTransactions.observeAsState(initial = emptyList())
     
     val consolidatedTransactions = remember(transactions) {
         TransactionConsolidationEngine.consolidate(transactions)
@@ -134,22 +135,18 @@ fun DashboardFragment(viewModel: DashboardViewModel) {
             )
         }
 
-        // STEP 1 (NEW) — Monthly Trend Chart
         if (monthlyTrend.isNotEmpty()) {
             MonthlyTrendChart(data = monthlyTrend)
         }
 
-        // STEP 2 (NEW) — Category Distribution Chart
         if (categoryDistribution.isNotEmpty()) {
             CategoryPieChart(data = categoryDistribution)
         }
 
-        // STEP 3 (NEW) — Account Balance Chart
         if (accounts.isNotEmpty()) {
             AccountBalanceChart(data = accounts)
         }
 
-        // STEP 5 — Top Spending Categories Chart (Keep existing)
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
@@ -182,7 +179,6 @@ fun DashboardFragment(viewModel: DashboardViewModel) {
             }
         }
 
-        // STEP 4 — Spending Ratio
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
@@ -211,40 +207,112 @@ fun DashboardFragment(viewModel: DashboardViewModel) {
             }
         }
 
-        // STEP 6 — Top Transactions (Limited to 3)
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = "Top Transactions",
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(start = 4.dp)
-            )
-            consolidatedTransactions.take(3).forEach { listItem ->
-                when (listItem) {
-                    is TransactionListItem.Regular -> {
-                        TransactionItem(
-                            transaction = listItem.transaction,
-                            onDelete = {},
-                            onClick = {},
-                            showDelete = false
-                        )
-                    }
-                    is TransactionListItem.Transfer -> {
-                        TransactionItem(
-                            transaction = listItem.sourceEntity,
-                            onDelete = {},
-                            onClick = {},
-                            overrideTitle = "${listItem.fromAccount} → ${listItem.toAccount}",
-                            isTransfer = true,
-                            showDelete = false
-                        )
+        // REDESIGNED: Top Transactions (Limited to 3, sorted by amount)
+        if (topTransactions.isNotEmpty()) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Top Transactions",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(2.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(modifier = Modifier.padding(8.dp)) {
+                        topTransactions.forEachIndexed { index, listItem ->
+                            val rank = index + 1
+                            when (listItem) {
+                                is TransactionListItem.Regular -> {
+                                    TopTransactionItem(
+                                        rank = rank,
+                                        title = listItem.transaction.category,
+                                        amount = listItem.transaction.amount,
+                                        date = TransactionDateUtils.formatDate(listItem.transaction.timestamp),
+                                        account = listItem.transaction.accountName,
+                                        isIncome = listItem.transaction.type == "INCOME"
+                                    )
+                                }
+                                is TransactionListItem.Transfer -> {
+                                    TopTransactionItem(
+                                        rank = rank,
+                                        title = "Transfer",
+                                        amount = listItem.amount,
+                                        date = TransactionDateUtils.formatDate(listItem.timestamp),
+                                        account = "${listItem.fromAccount} → ${listItem.toAccount}",
+                                        isIncome = false
+                                    )
+                                }
+                            }
+                            if (index < topTransactions.size - 1) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 12.dp),
+                                    thickness = 0.5.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+fun TopTransactionItem(
+    rank: Int,
+    title: String,
+    amount: Double,
+    date: String,
+    account: String,
+    isIncome: Boolean
+) {
+    val backgroundColor = if (rank == 1) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f) else Color.Transparent
+    val titleWeight = if (rank == 1) FontWeight.Bold else FontWeight.Medium
+    
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(backgroundColor, RoundedCornerShape(12.dp))
+            .padding(vertical = 10.dp, horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "#$rank",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+            modifier = Modifier.width(36.dp),
+            fontWeight = FontWeight.Bold
+        )
+        
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = titleWeight,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1
+            )
+            Text(
+                text = "$account • $date",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        
+        Text(
+            text = "${if (isIncome) "+" else "-"}₹%.0f".format(amount),
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.ExtraBold,
+            color = if (isIncome) Color(0xFF2E7D32) else Color(0xFFC62828)
+        )
     }
 }
 

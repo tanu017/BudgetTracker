@@ -5,6 +5,8 @@ import com.example.budgettracker.data.local.entities.AccountEntity
 import com.example.budgettracker.data.local.entities.TransactionEntity
 import com.example.budgettracker.repository.AccountRepository
 import com.example.budgettracker.repository.TransactionRepository
+import com.example.budgettracker.ui.transactions.engine.TransactionConsolidationEngine
+import com.example.budgettracker.ui.transactions.model.TransactionListItem
 import kotlinx.coroutines.flow.map
 import java.text.SimpleDateFormat
 import java.util.*
@@ -25,6 +27,17 @@ class DashboardViewModel(
     // Observe all accounts as LiveData
     val allAccounts: LiveData<List<AccountEntity>> = 
         accountRepository.getAllAccounts().asLiveData()
+
+    /**
+     * STEP 2 & 3 — Fixed logic for Top Transactions (Highest absolute values)
+     */
+    val topTransactions: LiveData<List<TransactionListItem>> = transactionRepository.getAllTransactions()
+        .map { transactions ->
+            val consolidated = TransactionConsolidationEngine.consolidate(transactions)
+            consolidated
+                .sortedByDescending { kotlin.math.abs(it.amount) } // Rank by value, not time
+                .take(3)
+        }.asLiveData()
 
     /**
      * Data for Monthly Trend Chart (Last 30 days)

@@ -1,8 +1,6 @@
 package com.example.budgettracker.utils
 
-/**
- * Global constants for the application.
- */
 object Constants {
-    const val DATABASE_NAME = "budget_tracker_db"
+    const val DEFAULT_ACCOUNT_ID = "default_cash_account"
+    const val DEFAULT_ACCOUNT_NAME = "Cash"
 }

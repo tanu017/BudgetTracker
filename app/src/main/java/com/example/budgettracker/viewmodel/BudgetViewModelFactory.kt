@@ -31,7 +31,7 @@ class BudgetViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return when {
             modelClass.isAssignableFrom(TransactionViewModel::class.java) -> {
-                TransactionViewModel(transactionRepository) as T
+                TransactionViewModel(transactionRepository, accountRepository) as T
             }
             modelClass.isAssignableFrom(AccountsViewModel::class.java) -> {
                 AccountsViewModel(accountRepository) as T

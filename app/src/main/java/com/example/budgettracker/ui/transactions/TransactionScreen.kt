@@ -46,17 +46,19 @@ fun TransactionScreen() {
     val reminderRepo = remember { ReminderRepository(database.reminderDao()) }
     val chatRepo = remember { ChatRepository(database.chatDao()) }
 
-    val viewModel: TransactionViewModel = viewModel(
-        factory = BudgetViewModelFactory(
-            transactionRepo,
-            accountRepo,
-            categoryRepo,
-            reminderRepo,
-            chatRepo
-        )
+    val factory = BudgetViewModelFactory(
+        transactionRepo,
+        accountRepo,
+        categoryRepo,
+        reminderRepo,
+        chatRepo
     )
 
+    val viewModel: TransactionViewModel = viewModel(factory = factory)
+    val accountsViewModel: AccountsViewModel = viewModel(factory = factory)
+
     val transactions by viewModel.allTransactions.observeAsState(initial = emptyList())
+    val accounts by accountsViewModel.allAccounts.observeAsState(initial = emptyList())
 
     var selectedTypeFilter by remember { mutableStateOf("ALL") }
     var selectedCategoryFilter by remember { mutableStateOf("ALL") }
@@ -170,10 +172,13 @@ fun TransactionScreen() {
                             )
                         }
                         if (isAddFormVisible) {
-                            AddTransactionForm(onSave = { 
-                                viewModel.insertTransaction(it)
-                                isAddFormVisible = false
-                            })
+                            AddTransactionForm(
+                                accounts = accounts,
+                                onSave = { 
+                                    viewModel.insertTransaction(it)
+                                    isAddFormVisible = false
+                                }
+                            )
                         }
                     }
                 }

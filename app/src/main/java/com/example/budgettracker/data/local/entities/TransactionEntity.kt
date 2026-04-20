@@ -18,7 +18,9 @@ data class TransactionEntity(
 
     val category: String, // Category name (e.g., Food, Salary, Travel)
 
-    val accountName: String, // The account used (e.g., Bank, Cash)
+    val accountId: String, // Link to AccountEntity.id
+
+    val accountName: String, // The account name (denormalized for convenience)
 
     val source: String, // How it was recorded: "CASH", "EMAIL", "MANUAL", or "TRANSFER"
 

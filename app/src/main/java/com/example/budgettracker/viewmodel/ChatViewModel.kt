@@ -10,6 +10,7 @@ import com.example.budgettracker.parser.ChatParser
 import com.example.budgettracker.repository.ChatRepository
 import com.example.budgettracker.repository.TransactionRepository
 import com.example.budgettracker.ui.chatbot.model.ChatMessage
+import com.example.budgettracker.utils.Constants
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -77,7 +78,8 @@ class ChatViewModel(
                     amount = intent.amount,
                     category = intent.category,
                     type = "INCOME",
-                    accountName = "Cash",
+                    accountId = Constants.DEFAULT_ACCOUNT_ID,
+                    accountName = Constants.DEFAULT_ACCOUNT_NAME,
                     source = "CHATBOT",
                     timestamp = intent.timestamp
                 )
@@ -91,7 +93,8 @@ class ChatViewModel(
                     amount = intent.amount,
                     category = intent.category,
                     type = "EXPENSE",
-                    accountName = "Cash",
+                    accountId = Constants.DEFAULT_ACCOUNT_ID,
+                    accountName = Constants.DEFAULT_ACCOUNT_NAME,
                     source = "CHATBOT",
                     timestamp = intent.timestamp
                 )

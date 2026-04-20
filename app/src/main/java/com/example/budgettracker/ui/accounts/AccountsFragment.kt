@@ -250,6 +250,7 @@ fun AccountsFragment() {
                                                 amount = amountToTransfer,
                                                 type = "TRANSFER",
                                                 category = "Transfer",
+                                                accountId = fromAccount!!.id,
                                                 accountName = fromAccount!!.accountName,
                                                 source = "TRANSFER",
                                                 timestamp = now,
@@ -260,6 +261,7 @@ fun AccountsFragment() {
                                                 amount = amountToTransfer,
                                                 type = "TRANSFER",
                                                 category = "Transfer",
+                                                accountId = toAccount!!.id,
                                                 accountName = toAccount!!.accountName,
                                                 source = "TRANSFER",
                                                 timestamp = now + 1,
@@ -366,12 +368,14 @@ fun AccountsFragment() {
                                 onClick = {
                                     val balance = initialBalance.toDoubleOrNull() ?: 0.0
                                     if (accountName.isNotBlank()) {
-                                        viewModel.insertAccount(AccountEntity(accountName = accountName, accountType = selectedAccountType))
+                                        val newAccount = AccountEntity(accountName = accountName, accountType = selectedAccountType)
+                                        viewModel.insertAccount(newAccount)
                                         if (balance != 0.0) {
                                             txViewModel.insertTransaction(TransactionEntity(
                                                 amount = Math.abs(balance),
                                                 type = if (balance > 0) "INCOME" else "EXPENSE",
                                                 category = "Initial Balance",
+                                                accountId = newAccount.id,
                                                 accountName = accountName,
                                                 source = "MANUAL",
                                                 timestamp = System.currentTimeMillis()

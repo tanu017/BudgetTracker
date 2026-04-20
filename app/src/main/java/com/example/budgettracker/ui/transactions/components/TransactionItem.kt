@@ -18,7 +18,7 @@ import com.example.budgettracker.data.local.entities.TransactionEntity
 import com.example.budgettracker.ui.transactions.utils.TransactionDateUtils
 
 /**
- * Redesigned Transaction Item that provides a consistent look for all transaction types.
+ * Updated Transaction Item showing the account name.
  */
 @Composable
 fun TransactionItem(
@@ -32,20 +32,19 @@ fun TransactionItem(
     val title = overrideTitle ?: transaction.category
     val dateString = TransactionDateUtils.formatDate(transaction.timestamp)
     
-    // STEP 3 & 5 — Color Logic
     val amountColor = when {
         isTransfer -> MaterialTheme.colorScheme.onSurface
         transaction.type == "INCOME" -> Color(0xFF2E7D32)
         else -> Color(0xFFC62828)
     }
 
+    // Showing Account Name in subtitle as per Step 7
     val subtitle = if (isTransfer) {
         "Transfer • $dateString"
     } else {
-        "${transaction.type} • $dateString"
+        "${transaction.accountName} • $dateString"
     }
 
-    // STEP 1 — Consistent Card Structure
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -58,7 +57,7 @@ fun TransactionItem(
     ) {
         Row(
             modifier = Modifier
-                .padding(16.dp) // STEP 9 & 10 — Clean alignment and padding
+                .padding(16.dp)
                 .fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
@@ -67,7 +66,6 @@ fun TransactionItem(
                 verticalAlignment = Alignment.CenterVertically, 
                 modifier = Modifier.weight(1f)
             ) {
-                // STEP 4 — Proper Transfer Icon
                 if (isTransfer) {
                     Icon(
                         imageVector = Icons.Default.SwapHoriz,
@@ -78,7 +76,6 @@ fun TransactionItem(
                     Spacer(Modifier.width(16.dp))
                 }
                 
-                // STEP 2 — Structured Title Layout
                 Column(verticalArrangement = Arrangement.Center) {
                     Text(
                         text = title,
@@ -96,7 +93,6 @@ fun TransactionItem(
                 }
             }
             
-            // STEP 5 — Amount Styling
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "₹%.2f".format(transaction.amount),

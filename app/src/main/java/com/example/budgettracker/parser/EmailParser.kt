@@ -1,6 +1,7 @@
 package com.example.budgettracker.parser
 
 import com.example.budgettracker.data.local.entities.TransactionEntity
+import com.example.budgettracker.utils.Constants
 
 /**
  * Data model for the parsed result.
@@ -21,7 +22,8 @@ fun ParsedTransaction.toTransactionEntity(): TransactionEntity {
         amount = this.amount,
         type = this.type,
         category = this.category,
-        accountName = "Primary Bank", // Default for parsed emails
+        accountId = Constants.DEFAULT_ACCOUNT_ID,
+        accountName = Constants.DEFAULT_ACCOUNT_NAME,
         source = "EMAIL",
         timestamp = this.timestamp
     )

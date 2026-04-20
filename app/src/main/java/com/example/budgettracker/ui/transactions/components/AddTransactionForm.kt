@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -13,18 +15,27 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.example.budgettracker.data.local.entities.AccountEntity
 import com.example.budgettracker.data.local.entities.TransactionEntity
 import com.example.budgettracker.ui.transactions.utils.TransactionDateUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTransactionForm(
+    accounts: List<AccountEntity>,
     onSave: (TransactionEntity) -> Unit
 ) {
     var amountText by remember { mutableStateOf("") }
     var categoryText by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf("EXPENSE") }
     var selectedDate by remember { mutableStateOf(System.currentTimeMillis()) }
+    
+    // Account Selection State
+    var selectedAccount by remember(accounts) { 
+        mutableStateOf(accounts.find { it.accountName.equals("Cash", ignoreCase = true) } ?: accounts.firstOrNull()) 
+    }
+    var accountExpanded by remember { mutableStateOf(false) }
+
     var showDatePicker by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -83,6 +94,45 @@ fun AddTransactionForm(
             )
         )
 
+        // Account Selector
+        ExposedDropdownMenuBox(
+            expanded = accountExpanded,
+            onExpandedChange = { accountExpanded = !accountExpanded }
+        ) {
+            OutlinedTextField(
+                value = selectedAccount?.accountName ?: "Select Account",
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Account") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = accountExpanded) },
+                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                )
+            )
+            ExposedDropdownMenu(
+                expanded = accountExpanded,
+                onDismissRequest = { accountExpanded = false }
+            ) {
+                accounts.forEach { account ->
+                    DropdownMenuItem(
+                        text = { 
+                            Column {
+                                Text(account.accountName)
+                                Text("₹%.2f".format(account.balance), style = MaterialTheme.typography.labelSmall)
+                            }
+                        },
+                        onClick = {
+                            selectedAccount = account
+                            accountExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+
         // Date Field
         Box(modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true }) {
             OutlinedTextField(
@@ -110,7 +160,7 @@ fun AddTransactionForm(
             val incomeSelected = selectedType == "INCOME"
             val expenseSelected = selectedType == "EXPENSE"
 
-            // Income Button (Pill)
+            // Income Button
             Surface(
                 onClick = { selectedType = "INCOME" },
                 modifier = Modifier.weight(1f).height(46.dp),
@@ -131,7 +181,7 @@ fun AddTransactionForm(
                 }
             }
 
-            // Expense Button (Pill)
+            // Expense Button
             Surface(
                 onClick = { selectedType = "EXPENSE" },
                 modifier = Modifier.weight(1f).height(46.dp),
@@ -166,13 +216,14 @@ fun AddTransactionForm(
         Button(
             onClick = {
                 val amount = amountText.toDoubleOrNull()
-                if (amount != null && amount > 0 && categoryText.isNotBlank()) {
+                if (amount != null && amount > 0 && categoryText.isNotBlank() && selectedAccount != null) {
                     onSave(
                         TransactionEntity(
                             amount = amount,
                             type = selectedType,
                             category = categoryText,
-                            accountName = "Cash",
+                            accountId = selectedAccount!!.id,
+                            accountName = selectedAccount!!.accountName,
                             source = "MANUAL",
                             timestamp = selectedDate
                         )
@@ -181,6 +232,8 @@ fun AddTransactionForm(
                     categoryText = ""
                     selectedDate = System.currentTimeMillis()
                     errorMessage = null
+                } else if (selectedAccount == null) {
+                    errorMessage = "Please create an account first"
                 } else {
                     errorMessage = "Please enter valid amount and category"
                 }

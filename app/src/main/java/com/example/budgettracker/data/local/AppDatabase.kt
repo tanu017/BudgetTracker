@@ -20,7 +20,7 @@ import com.example.budgettracker.data.local.entities.*
         ReminderEntity::class,
         ChatMessageEntity::class
     ],
-    version = 5, // Bumped from 4 to 5
+    version = 6, // Bumped from 5 to 6 for account-based transactions
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -78,6 +78,9 @@ abstract class AppDatabase : RoomDatabase() {
                     "budget_tracker_db"
                 )
                 .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                // TODO: Replace with proper migrations in production. 
+                // Using destructive migration to simplify schema changes during development.
+                .fallbackToDestructiveMigration()
                 .build()
                 
                 INSTANCE = instance

@@ -19,8 +19,10 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -202,66 +204,127 @@ fun InsightPill(icon: ImageVector, text: String, iconColor: Color) {
 fun HomeAnalyticsCard(data: List<MonthlyAnalytics>) {
     if (data.isEmpty()) return
 
+    val incomeColor = MaterialTheme.colorScheme.primary
+    val expenseColor = MaterialTheme.colorScheme.error
+    val gridLineColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(0.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         border = CardDefaults.outlinedCardBorder(enabled = true)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = "Monthly Analytics",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(20.dp))
             
             val maxVal = (data.maxOfOrNull { maxOf(it.income, it.expense) } ?: 100f).coerceAtLeast(100f)
 
-            Box(modifier = Modifier.fillMaxWidth().height(150.dp)) {
+            Box(modifier = Modifier.fillMaxWidth().height(160.dp)) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val canvasWidth = size.width
                     val canvasHeight = size.height
-                    val barWidthPx = 12.dp.toPx()
-                    val groupWidthPx = barWidthPx * 2.5f
+                    val barWidthPx = 14.dp.toPx()
+                    val groupWidthPx = barWidthPx * 2.8f
                     val spacing = (canvasWidth - (data.size * groupWidthPx)) / (data.size + 1)
+                    val cornerRadius = CornerRadius(12.dp.toPx())
+
+                    // Draw subtle grid lines
+                    val gridLines = 4
+                    for (i in 0..gridLines) {
+                        val y = canvasHeight - (i * (canvasHeight / gridLines))
+                        drawLine(
+                            color = gridLineColor,
+                            start = Offset(0f, y),
+                            end = Offset(canvasWidth, y),
+                            strokeWidth = 1.dp.toPx()
+                        )
+                    }
                     
                     data.forEachIndexed { index, item ->
                         val xBase = spacing + index * (groupWidthPx + spacing)
                         
-                        // Income Bar
+                        // Income Bar (Gradient)
                         val incomeHeight = (item.income / maxVal) * canvasHeight
-                        drawRect(
-                            color = Color(0xFF4CAF50),
-                            topLeft = Offset(xBase, canvasHeight - incomeHeight),
-                            size = Size(barWidthPx, incomeHeight)
-                        )
+                        if (incomeHeight > 0) {
+                            drawRoundRect(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(incomeColor.copy(alpha = 0.85f), incomeColor.copy(alpha = 0.2f)),
+                                    startY = canvasHeight - incomeHeight,
+                                    endY = canvasHeight
+                                ),
+                                topLeft = Offset(xBase, canvasHeight - incomeHeight),
+                                size = Size(barWidthPx, incomeHeight),
+                                cornerRadius = cornerRadius
+                            )
+                        }
                         
-                        // Expense Bar
+                        // Expense Bar (Gradient)
                         val expenseHeight = (item.expense / maxVal) * canvasHeight
-                        drawRect(
-                            color = Color(0xFFF44336),
-                            topLeft = Offset(xBase + barWidthPx + 4.dp.toPx(), canvasHeight - expenseHeight),
-                            size = Size(barWidthPx, expenseHeight)
-                        )
+                        if (expenseHeight > 0) {
+                            drawRoundRect(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(expenseColor.copy(alpha = 0.85f), expenseColor.copy(alpha = 0.2f)),
+                                    startY = canvasHeight - expenseHeight,
+                                    endY = canvasHeight
+                                ),
+                                topLeft = Offset(xBase + barWidthPx + 6.dp.toPx(), canvasHeight - expenseHeight),
+                                size = Size(barWidthPx, expenseHeight),
+                                cornerRadius = cornerRadius
+                            )
+                        }
                     }
                 }
             }
             
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp, start = 4.dp, end = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 data.forEach { item ->
                     Text(
                         text = item.label,
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
+
+            // Legend
+            Row(
+                modifier = Modifier.padding(top = 16.dp).fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                LegendIndicator(color = incomeColor, label = "Income")
+                Spacer(modifier = Modifier.width(20.dp))
+                LegendIndicator(color = expenseColor, label = "Expense")
+            }
         }
+    }
+}
+
+@Composable
+fun LegendIndicator(color: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(RoundedCornerShape(50))
+                .background(color.copy(alpha = 0.85f))
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

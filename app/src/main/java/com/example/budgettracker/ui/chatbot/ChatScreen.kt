@@ -14,10 +14,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -30,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -44,10 +47,14 @@ import java.util.Locale
 @Composable
 fun ChatScreen(viewModel: ChatViewModel) {
     val context = LocalContext.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     var inputText by remember { mutableStateOf("") }
     var showDeleteDialog by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val messages = viewModel.messages
+    
+    // Reverse messages for WhatsApp-style reverse layout
+    val reversedMessages = remember(messages) { messages.asReversed() }
 
     val speechLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -62,9 +69,10 @@ fun ChatScreen(viewModel: ChatViewModel) {
         }
     }
 
+    // Auto-scroll to bottom (which is index 0 in reverse layout)
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
+            listState.animateScrollToItem(0)
         }
     }
 
@@ -90,7 +98,9 @@ fun ChatScreen(viewModel: ChatViewModel) {
     }
 
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .imePadding(), // Fixes keyboard behavior
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             CenterAlignedTopAppBar(
@@ -126,8 +136,6 @@ fun ChatScreen(viewModel: ChatViewModel) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .animateContentSize()
         ) {
             // Chat Message List
             Box(modifier = Modifier.weight(1f)) {
@@ -139,90 +147,87 @@ fun ChatScreen(viewModel: ChatViewModel) {
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        reverseLayout = true, // WhatsApp style
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                     ) {
-                        items(messages) { message ->
+                        items(reversedMessages) { message ->
                             ChatBubble(message)
                         }
                     }
                 }
             }
 
-            // Compact & Modern Input Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .clip(RoundedCornerShape(28.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
+            // WhatsApp Style Chat Input Bar
+            Surface(
+                tonalElevation = 2.dp,
+                shadowElevation = 4.dp,
+                color = MaterialTheme.colorScheme.surface,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                IconButton(
-                    modifier = Modifier.size(36.dp),
-                    onClick = {
-                        val hasPermission = ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.RECORD_AUDIO
-                        ) == PackageManager.PERMISSION_GRANTED
+                Row(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .navigationBarsPadding(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextField(
+                        value = inputText,
+                        onValueChange = { inputText = it },
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(24.dp)),
+                        placeholder = { Text(stringResource(R.string.bot_placeholder), fontSize = 14.sp) },
+                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            disabledContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                        ),
+                        maxLines = 4,
+                        shape = RoundedCornerShape(24.dp)
+                    )
 
-                        if (hasPermission) {
-                            startVoiceInput(context, speechLauncher) { inputText = it }
-                        } else {
-                            Toast.makeText(
-                                context,
-                                "Please enable microphone permission in settings",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // Dynamic Send/Mic Button
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                            .clickable {
+                                if (inputText.isNotBlank()) {
+                                    viewModel.sendMessage(inputText)
+                                    inputText = ""
+                                    keyboardController?.hide()
+                                } else {
+                                    val hasPermission = ContextCompat.checkSelfPermission(
+                                        context,
+                                        Manifest.permission.RECORD_AUDIO
+                                    ) == PackageManager.PERMISSION_GRANTED
+
+                                    if (hasPermission) {
+                                        startVoiceInput(context, speechLauncher) { inputText = it }
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            "Please enable microphone permission in settings",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (inputText.isEmpty()) Icons.Default.Mic else Icons.Default.Send,
+                            contentDescription = if (inputText.isEmpty()) "Voice Input" else "Send",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Mic,
-                        contentDescription = "Voice Input",
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-
-                TextField(
-                    value = inputText,
-                    onValueChange = { inputText = it },
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text(stringResource(R.string.bot_placeholder), fontSize = 14.sp) },
-                    textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        disabledContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                    ),
-                    maxLines = 4,
-                    singleLine = false
-                )
-
-                IconButton(
-                    modifier = Modifier.size(36.dp),
-                    onClick = {
-                        if (inputText.isNotBlank()) {
-                            viewModel.sendMessage(inputText)
-                            inputText = ""
-                        }
-                    },
-                    enabled = inputText.isNotBlank(),
-                    colors = IconButtonDefaults.iconButtonColors(
-                        contentColor = MaterialTheme.colorScheme.primary,
-                        disabledContentColor = Color.Gray
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Send,
-                        contentDescription = "Send",
-                        modifier = Modifier.size(20.dp)
-                    )
                 }
             }
         }
@@ -242,15 +247,17 @@ fun ChatBubble(message: ChatMessage) {
     }
 
     Box(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
         contentAlignment = alignment
     ) {
         Surface(
             color = bubbleColor,
             shape = shape,
-            tonalElevation = 2.dp,
+            tonalElevation = 1.dp,
             modifier = Modifier
-                .fillMaxWidth(0.75f)
+                .fillMaxWidth(0.85f)
                 .animateContentSize()
         ) {
             Text(

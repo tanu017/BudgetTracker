@@ -1,6 +1,8 @@
 package com.example.budgettracker.ui.home
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -9,10 +11,12 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.budgettracker.R
 import com.example.budgettracker.ui.home.components.HeroBalanceCard
 import com.example.budgettracker.ui.home.components.HomeTransactionPreviewItem
@@ -75,7 +79,7 @@ fun HomeScreen(viewModel: DashboardViewModel, modifier: Modifier = Modifier) {
                 start = 16.dp,
                 top = 16.dp,
                 end = 16.dp,
-                bottom = 100.dp // Added extra padding for bottom navigation
+                bottom = 100.dp 
             )
         ) {
             item {
@@ -88,29 +92,10 @@ fun HomeScreen(viewModel: DashboardViewModel, modifier: Modifier = Modifier) {
             }
 
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth().animateContentSize(),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(2.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "Monthly Spending Limit",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        val spendingRatio = if (totalIncome > 0) (totalExpense / totalIncome).toFloat().coerceIn(0f, 1f) else 0f
-                        LinearProgressIndicator(
-                            progress = { spendingRatio },
-                            modifier = Modifier.fillMaxWidth().height(10.dp),
-                            strokeCap = StrokeCap.Round,
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                            color = if (spendingRatio > 0.8f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
+                SpendingLimitSection(
+                    totalExpense = totalExpense,
+                    totalIncome = totalIncome
+                )
             }
 
             item {
@@ -174,6 +159,78 @@ fun HomeScreen(viewModel: DashboardViewModel, modifier: Modifier = Modifier) {
             item {
                 Spacer(modifier = Modifier.height(16.dp))
             }
+        }
+    }
+}
+
+@Composable
+fun SpendingLimitSection(totalExpense: Double, totalIncome: Double) {
+    val progressValue = if (totalIncome > 0) (totalExpense / totalIncome).toFloat().coerceIn(0f, 1f) else 0f
+    val animatedProgress by animateFloatAsState(
+        targetValue = progressValue,
+        label = "progressAnimation"
+    )
+    val usagePercentage = (progressValue * 100).toInt()
+    
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            .padding(16.dp)
+            .animateContentSize()
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Monthly Spending Limit",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
+            Text(
+                text = "$usagePercentage% used",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = if (usagePercentage > 95) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(10.dp))
+        
+        LinearProgressIndicator(
+            progress = { animatedProgress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(50)),
+            color = if (usagePercentage > 95) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+            trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
+        
+        Spacer(modifier = Modifier.height(6.dp))
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "₹${"%,.0f".format(totalExpense)} spent", 
+                style = MaterialTheme.typography.bodySmall,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Limit ₹${"%,.0f".format(totalIncome)}", 
+                style = MaterialTheme.typography.bodySmall,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

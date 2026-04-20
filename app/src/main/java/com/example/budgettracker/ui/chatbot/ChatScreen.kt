@@ -13,6 +13,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,12 +27,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.example.budgettracker.R
 import com.example.budgettracker.ui.chatbot.model.ChatMessage
 import com.example.budgettracker.viewmodel.ChatViewModel
 import java.util.Locale
@@ -86,10 +90,24 @@ fun ChatScreen(viewModel: ChatViewModel) {
     }
 
     Scaffold(
-        modifier = Modifier.fillMaxSize(), // Removed windowInsetsPadding(WindowInsets.systemBars)
+        modifier = Modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Budget Bot", fontWeight = FontWeight.Bold) },
+                title = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = stringResource(R.string.bot_name),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Your smart finance assistant",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        )
+                    }
+                },
                 actions = {
                     if (messages.isNotEmpty()) {
                         IconButton(onClick = { showDeleteDialog = true }) {
@@ -108,20 +126,21 @@ fun ChatScreen(viewModel: ChatViewModel) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp)
+                .windowInsetsPadding(WindowInsets.safeDrawing)
                 .animateContentSize()
         ) {
+            // Chat Message List
             Box(modifier = Modifier.weight(1f)) {
                 if (messages.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Start a conversation 👋", color = Color.Gray)
+                        Text(stringResource(R.string.bot_greeting), color = Color.Gray)
                     }
                 } else {
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(bottom = 16.dp)
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                     ) {
                         items(messages) { message ->
                             ChatBubble(message)
@@ -130,20 +149,20 @@ fun ChatScreen(viewModel: ChatViewModel) {
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Surface(
-                tonalElevation = 3.dp,
-                shadowElevation = 2.dp,
-                shape = RoundedCornerShape(28.dp),
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.surface
+            // Compact & Modern Input Bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = {
+                IconButton(
+                    modifier = Modifier.size(36.dp),
+                    onClick = {
                         val hasPermission = ContextCompat.checkSelfPermission(
                             context,
                             Manifest.permission.RECORD_AUDIO
@@ -158,51 +177,52 @@ fun ChatScreen(viewModel: ChatViewModel) {
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.Mic,
-                            contentDescription = "Voice Input",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
                     }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    TextField(
-                        value = inputText,
-                        onValueChange = { inputText = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("Ask about expenses...", fontSize = 14.sp) },
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            disabledContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                        ),
-                        maxLines = 4
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Mic,
+                        contentDescription = "Voice Input",
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.primary
                     )
+                }
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                TextField(
+                    value = inputText,
+                    onValueChange = { inputText = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text(stringResource(R.string.bot_placeholder), fontSize = 14.sp) },
+                    textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        disabledContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                    ),
+                    maxLines = 4,
+                    singleLine = false
+                )
 
-                    IconButton(
-                        onClick = {
-                            if (inputText.isNotBlank()) {
-                                viewModel.sendMessage(inputText)
-                                inputText = ""
-                            }
-                        },
-                        enabled = inputText.isNotBlank(),
-                        colors = IconButtonDefaults.iconButtonColors(
-                            contentColor = MaterialTheme.colorScheme.primary,
-                            disabledContentColor = Color.Gray
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Send,
-                            contentDescription = "Send"
-                        )
-                    }
+                IconButton(
+                    modifier = Modifier.size(36.dp),
+                    onClick = {
+                        if (inputText.isNotBlank()) {
+                            viewModel.sendMessage(inputText)
+                            inputText = ""
+                        }
+                    },
+                    enabled = inputText.isNotBlank(),
+                    colors = IconButtonDefaults.iconButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary,
+                        disabledContentColor = Color.Gray
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Send,
+                        contentDescription = "Send",
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
         }
@@ -235,9 +255,9 @@ fun ChatBubble(message: ChatMessage) {
         ) {
             Text(
                 text = message.message,
-                modifier = Modifier.padding(12.dp),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                 color = textColor,
-                fontSize = 15.sp,
+                fontSize = 14.sp,
                 lineHeight = 20.sp
             )
         }

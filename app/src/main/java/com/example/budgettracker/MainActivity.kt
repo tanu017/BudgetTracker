@@ -27,8 +27,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.example.budgettracker.data.local.AppDatabase
-import com.example.budgettracker.repository.*
 import com.example.budgettracker.ui.accounts.AccountsFragment
 import com.example.budgettracker.ui.auth.LoginScreen
 import com.example.budgettracker.ui.chatbot.ChatScreen
@@ -50,7 +48,12 @@ class MainActivity : FragmentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, true)
         
         setContent {
+            val context = LocalContext.current
+            val factory = remember { BudgetViewModelFactory.getInstance(context) }
+            
             val authViewModel: AuthViewModel = viewModel()
+            val chatViewModel: ChatViewModel = viewModel(factory = factory)
+            
             val userName by authViewModel.userName.collectAsState()
             val themeMode by authViewModel.themeMode.collectAsState()
 
@@ -67,10 +70,11 @@ class MainActivity : FragmentActivity() {
                         AppLockGate {
                             BudgetTrackerApp(
                                 userName = userName!!, 
-                                currentTheme = themeMode,
+                                isDarkMode = themeMode == "dark",
                                 onLogout = { authViewModel.clearUser() },
                                 onUpdateName = { newName -> authViewModel.saveUserName(newName) },
-                                onThemeChange = { mode -> authViewModel.setTheme(mode) }
+                                onThemeChange = { isDark -> authViewModel.setTheme(if (isDark) "dark" else "light") },
+                                onClearChat = { chatViewModel.clearChat() }
                             )
                         }
                     }
@@ -92,21 +96,15 @@ sealed class Screen(val route: String, val labelId: Int, val icon: androidx.comp
 @Composable
 fun BudgetTrackerApp(
     userName: String, 
-    currentTheme: String,
+    isDarkMode: Boolean,
     onLogout: () -> Unit,
     onUpdateName: (String) -> Unit,
-    onThemeChange: (String) -> Unit
+    onThemeChange: (Boolean) -> Unit,
+    onClearChat: () -> Unit
 ) {
     val context = LocalContext.current
-    val database = remember { AppDatabase.getDatabase(context) }
+    val factory = remember { BudgetViewModelFactory.getInstance(context) }
     
-    val transactionRepo = remember { TransactionRepository(database.transactionDao()) }
-    val accountRepo = remember { AccountRepository(database.accountDao()) }
-    val categoryRepo = remember { CategoryRepository(database.categoryDao()) }
-    val reminderRepo = remember { ReminderRepository(database.reminderDao()) }
-    val chatRepo = remember { ChatRepository(database.chatDao()) }
-
-    val factory = BudgetViewModelFactory(transactionRepo, accountRepo, categoryRepo, reminderRepo, chatRepo)
     val dashboardViewModel: DashboardViewModel = viewModel(factory = factory)
     val chatViewModel: ChatViewModel = viewModel(factory = factory)
 
@@ -132,10 +130,11 @@ fun BudgetTrackerApp(
         topBar = {
             HomeTopBar(
                 name = userName,
-                currentTheme = currentTheme,
+                isDarkMode = isDarkMode,
                 onEditName = { showEditDialog = true },
                 onLogout = onLogout,
-                onThemeChange = onThemeChange
+                onThemeChange = onThemeChange,
+                onClearChatClick = onClearChat
             )
         },
         bottomBar = {

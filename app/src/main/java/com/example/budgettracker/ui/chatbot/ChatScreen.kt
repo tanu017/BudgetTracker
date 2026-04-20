@@ -22,7 +22,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
@@ -49,7 +48,6 @@ fun ChatScreen(viewModel: ChatViewModel) {
     val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
     var inputText by remember { mutableStateOf("") }
-    var showDeleteDialog by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val messages = viewModel.messages
     
@@ -76,31 +74,10 @@ fun ChatScreen(viewModel: ChatViewModel) {
         }
     }
 
-    if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Chat") },
-            text = { Text("Are you sure you want to permanently delete this conversation?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.clearChat()
-                    showDeleteDialog = false
-                }) {
-                    Text("Yes", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("No")
-                }
-            }
-        )
-    }
-
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
-            .imePadding(), // Fixes keyboard behavior
+            .imePadding(),
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             CenterAlignedTopAppBar(
@@ -116,13 +93,6 @@ fun ChatScreen(viewModel: ChatViewModel) {
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                         )
-                    }
-                },
-                actions = {
-                    if (messages.isNotEmpty()) {
-                        IconButton(onClick = { showDeleteDialog = true }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete Chat")
-                        }
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -147,7 +117,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxWidth(),
-                        reverseLayout = true, // WhatsApp style
+                        reverseLayout = true,
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                     ) {
                         items(reversedMessages) { message ->

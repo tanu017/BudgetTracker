@@ -1,6 +1,7 @@
 package com.example.budgettracker.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -18,12 +19,37 @@ import java.time.LocalTime
 @Composable
 fun HomeTopBar(
     name: String,
-    currentTheme: String,
+    isDarkMode: Boolean,
     onEditName: () -> Unit,
     onLogout: () -> Unit,
-    onThemeChange: (String) -> Unit
+    onThemeChange: (Boolean) -> Unit,
+    onClearChatClick: () -> Unit = {}
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var showClearChatDialog by remember { mutableStateOf(false) }
+
+    if (showClearChatDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearChatDialog = false },
+            title = { Text("Clear Finn Chat?") },
+            text = { Text("This will permanently delete all messages with Finn. This action cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onClearChatClick()
+                        showClearChatDialog = false
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearChatDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     TopAppBar(
         title = {
@@ -51,9 +77,9 @@ fun HomeTopBar(
                 DropdownMenu(
                     expanded = expanded,
                     onDismissRequest = { expanded = false },
-                    modifier = Modifier.width(220.dp).background(MaterialTheme.colorScheme.surface)
+                    modifier = Modifier.width(260.dp).background(MaterialTheme.colorScheme.surface)
                 ) {
-                    // Header with name
+                    // 1. Header with name
                     DropdownMenuItem(
                         text = {
                             Column {
@@ -76,37 +102,7 @@ fun HomeTopBar(
                     
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-                    // Theme Selection
-                    DropdownMenuItem(
-                        text = { Text("Light Theme") },
-                        onClick = {
-                            onThemeChange("light")
-                            expanded = false
-                        },
-                        leadingIcon = { Icon(Icons.Default.LightMode, contentDescription = null) },
-                        trailingIcon = {
-                            if (currentTheme == "light") {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    )
-
-                    DropdownMenuItem(
-                        text = { Text("Dark Theme") },
-                        onClick = {
-                            onThemeChange("dark")
-                            expanded = false
-                        },
-                        leadingIcon = { Icon(Icons.Default.DarkMode, contentDescription = null) },
-                        trailingIcon = {
-                            if (currentTheme == "dark") {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    )
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                    
+                    // 2. Edit Name
                     DropdownMenuItem(
                         text = { Text("Edit Name") },
                         onClick = {
@@ -115,7 +111,59 @@ fun HomeTopBar(
                         },
                         leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
                     )
+
+                    // 3. Theme Switcher Toggle
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onThemeChange(!isDarkMode) }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (isDarkMode) Icons.Default.DarkMode else Icons.Default.LightMode,
+                            contentDescription = "Theme",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Text(
+                            text = "Dark Mode",
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+
+                        Switch(
+                            checked = isDarkMode,
+                            onCheckedChange = { onThemeChange(it) }
+                        )
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                     
+                    // 4. Clear Chat (Destructive)
+                    DropdownMenuItem(
+                        text = { 
+                            Text(
+                                text = "Clear Finn Chat", 
+                                color = MaterialTheme.colorScheme.error 
+                            ) 
+                        },
+                        onClick = {
+                            expanded = false
+                            showClearChatDialog = true
+                        },
+                        leadingIcon = { 
+                            Icon(
+                                Icons.Default.Delete, 
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error
+                            ) 
+                        }
+                    )
+                    
+                    // 5. Logout
                     DropdownMenuItem(
                         text = { Text("Logout", color = MaterialTheme.colorScheme.error) },
                         onClick = {

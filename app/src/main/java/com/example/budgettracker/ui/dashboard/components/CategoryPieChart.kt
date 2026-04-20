@@ -1,6 +1,7 @@
 package com.example.budgettracker.ui.dashboard.components
 
 import android.graphics.Color as AndroidColor
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -12,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -22,10 +24,26 @@ import com.github.mikephil.charting.data.PieEntry
 
 @Composable
 fun CategoryPieChart(data: List<Pair<String, Float>>) {
-    val pastelColors = listOf(
-        "#FFB7B2", "#FFDAC1", "#E2F0CB", "#B5EAD7", "#C7CEEA",
-        "#F3D1F4", "#F4CFDF", "#B9FBC0", "#98F5E1", "#8ECAE6"
-    ).map { AndroidColor.parseColor(it) }
+    val isDark = isSystemInDarkTheme()
+    val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
+    
+    // Theme-aware colors for pie slices
+    val chartColors = if (isDark) {
+        listOf(
+            MaterialTheme.colorScheme.primary,
+            MaterialTheme.colorScheme.secondary,
+            MaterialTheme.colorScheme.tertiary,
+            MaterialTheme.colorScheme.error,
+            MaterialTheme.colorScheme.primaryContainer,
+            MaterialTheme.colorScheme.secondaryContainer,
+            MaterialTheme.colorScheme.tertiaryContainer
+        ).map { it.toArgb() }
+    } else {
+        listOf(
+            "#FFB7B2", "#FFDAC1", "#E2F0CB", "#B5EAD7", "#C7CEEA",
+            "#F3D1F4", "#F4CFDF", "#B9FBC0", "#98F5E1", "#8ECAE6"
+        ).map { AndroidColor.parseColor(it) }
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -37,7 +55,8 @@ fun CategoryPieChart(data: List<Pair<String, Float>>) {
             Text(
                 text = "Category Distribution",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
             )
             AndroidView(
                 factory = { context ->
@@ -52,18 +71,20 @@ fun CategoryPieChart(data: List<Pair<String, Float>>) {
                         legend.horizontalAlignment = com.github.mikephil.charting.components.Legend.LegendHorizontalAlignment.CENTER
                         legend.orientation = com.github.mikephil.charting.components.Legend.LegendOrientation.HORIZONTAL
                         legend.setDrawInside(false)
-                        legend.textColor = AndroidColor.GRAY
+                        legend.textColor = textColor
                         animateY(1000)
                     }
                 },
                 update = { chart ->
                     val entries = data.map { PieEntry(it.second, it.first) }
                     val dataSet = PieDataSet(entries, "").apply {
-                        colors = pastelColors
+                        colors = chartColors
                         sliceSpace = 3f
                         setDrawValues(false)
                     }
                     chart.data = PieData(dataSet)
+                    chart.legend.textColor = textColor
+                    chart.setHoleColor(AndroidColor.TRANSPARENT)
                     chart.invalidate()
                 },
                 modifier = Modifier.fillMaxWidth().height(250.dp)

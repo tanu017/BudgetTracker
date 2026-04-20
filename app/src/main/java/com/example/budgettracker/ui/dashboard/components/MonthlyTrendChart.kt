@@ -1,6 +1,7 @@
 package com.example.budgettracker.ui.dashboard.components
 
 import android.graphics.Color as AndroidColor
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -12,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -24,6 +26,11 @@ import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 
 @Composable
 fun MonthlyTrendChart(data: List<Pair<String, Float>>) {
+    val isDark = isSystemInDarkTheme()
+    val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
+    val gridColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f).toArgb()
+    val primaryColor = MaterialTheme.colorScheme.primary.toArgb()
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -34,7 +41,8 @@ fun MonthlyTrendChart(data: List<Pair<String, Float>>) {
             Text(
                 text = "Monthly Spending Trend",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
             )
             AndroidView(
                 factory = { context ->
@@ -46,13 +54,13 @@ fun MonthlyTrendChart(data: List<Pair<String, Float>>) {
                             position = XAxis.XAxisPosition.BOTTOM
                             setDrawGridLines(false)
                             granularity = 1f
-                            textColor = AndroidColor.GRAY
+                            this.textColor = textColor
                             textSize = 10f
                         }
                         axisLeft.apply {
                             setDrawGridLines(true)
-                            gridColor = AndroidColor.LTGRAY
-                            textColor = AndroidColor.GRAY
+                            this.gridColor = gridColor
+                            this.textColor = textColor
                         }
                         axisRight.isEnabled = false
                     }
@@ -60,18 +68,23 @@ fun MonthlyTrendChart(data: List<Pair<String, Float>>) {
                 update = { chart ->
                     val entries = data.mapIndexed { index, pair -> Entry(index.toFloat(), pair.second) }
                     val dataSet = LineDataSet(entries, "Spending").apply {
-                        color = AndroidColor.parseColor("#673AB7") // Purple
-                        setCircleColor(AndroidColor.parseColor("#673AB7"))
+                        color = primaryColor
+                        setCircleColor(primaryColor)
                         lineWidth = 3f
                         circleRadius = 4f
                         setDrawCircleHole(false)
                         mode = LineDataSet.Mode.CUBIC_BEZIER
                         setDrawFilled(true)
-                        fillColor = AndroidColor.parseColor("#673AB7")
-                        fillAlpha = 50
+                        fillColor = primaryColor
+                        fillAlpha = if (isDark) 80 else 50
+                        valueTextColor = textColor
+                        valueTextSize = 10f
                     }
                     chart.data = LineData(dataSet)
                     chart.xAxis.valueFormatter = IndexAxisValueFormatter(data.map { it.first })
+                    chart.xAxis.textColor = textColor
+                    chart.axisLeft.textColor = textColor
+                    chart.axisLeft.gridColor = gridColor
                     chart.invalidate()
                 },
                 modifier = Modifier.fillMaxWidth().height(200.dp)

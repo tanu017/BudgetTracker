@@ -1,6 +1,7 @@
 package com.example.budgettracker.ui.dashboard.components
 
 import android.graphics.Color as AndroidColor
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -12,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -25,6 +27,11 @@ import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 
 @Composable
 fun AccountBalanceChart(data: List<AccountEntity>) {
+    val isDark = isSystemInDarkTheme()
+    val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
+    val gridColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f).toArgb()
+    val barColor = MaterialTheme.colorScheme.secondary.toArgb()
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -35,7 +42,8 @@ fun AccountBalanceChart(data: List<AccountEntity>) {
             Text(
                 text = "Account Balance Distribution",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
             )
             AndroidView(
                 factory = { context ->
@@ -48,14 +56,14 @@ fun AccountBalanceChart(data: List<AccountEntity>) {
                             setDrawGridLines(false)
                             setDrawAxisLine(false)
                             granularity = 1f
-                            textColor = AndroidColor.GRAY
+                            this.textColor = textColor
                             textSize = 10f
                         }
                         axisLeft.isEnabled = false
                         axisRight.apply {
                             setDrawGridLines(true)
-                            gridColor = AndroidColor.LTGRAY
-                            textColor = AndroidColor.GRAY
+                            this.gridColor = gridColor
+                            this.textColor = textColor
                         }
                     }
                 },
@@ -64,13 +72,16 @@ fun AccountBalanceChart(data: List<AccountEntity>) {
                         BarEntry(index.toFloat(), account.balance.toFloat()) 
                     }
                     val dataSet = BarDataSet(entries, "Balance").apply {
-                        color = AndroidColor.parseColor("#0277BD") // Fintech Blue
-                        valueTextColor = AndroidColor.BLACK
+                        color = barColor
+                        valueTextColor = textColor
                         valueTextSize = 10f
                         setDrawValues(true)
                     }
                     chart.data = BarData(dataSet)
                     chart.xAxis.valueFormatter = IndexAxisValueFormatter(data.map { it.accountName })
+                    chart.xAxis.textColor = textColor
+                    chart.axisRight.textColor = textColor
+                    chart.axisRight.gridColor = gridColor
                     chart.invalidate()
                 },
                 modifier = Modifier.fillMaxWidth().height((data.size * 50 + 100).coerceAtLeast(150).dp)

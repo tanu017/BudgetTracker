@@ -16,6 +16,9 @@ class AccountsViewModel(private val repository: AccountRepository) : ViewModel()
         repository.insertAccount(account)
     }
 
+    /**
+     * Standardized to a single parameter version as per Step 2.
+     */
     fun updateAccount(account: AccountEntity) = viewModelScope.launch {
         repository.updateAccount(account)
     }

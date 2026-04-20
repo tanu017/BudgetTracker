@@ -13,7 +13,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.budgettracker.R
 import com.example.budgettracker.ui.home.components.HeroBalanceCard
 import com.example.budgettracker.ui.home.components.HomeTransactionPreviewItem
@@ -22,13 +21,11 @@ import com.example.budgettracker.ui.transactions.engine.*
 import com.example.budgettracker.viewmodel.DashboardViewModel
 import com.example.budgettracker.ui.transactions.model.MonthlyAnalytics
 import com.example.budgettracker.ui.transactions.model.TransactionListItem
-import com.example.budgettracker.ui.transactions.engine.BudgetHealthEngine
-import com.example.budgettracker.ui.transactions.engine.TransactionConsolidationEngine
 import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
-fun HomeScreen(viewModel: DashboardViewModel) {
+fun HomeScreen(viewModel: DashboardViewModel, modifier: Modifier = Modifier) {
     val transactions by viewModel.allTransactions.observeAsState(initial = emptyList())
     val accounts by viewModel.allAccounts.observeAsState(initial = emptyList())
 
@@ -49,15 +46,6 @@ fun HomeScreen(viewModel: DashboardViewModel) {
     
     val savingsRate = (healthMetrics.savingsRatio * 100).toInt()
 
-    val greeting = remember {
-        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-        when (hour) {
-            in 0..11 -> "Good morning"
-            in 12..16 -> "Good afternoon"
-            else -> "Good evening"
-        }
-    }
-
     val monthlyData = remember(transactions) {
         val sdf = SimpleDateFormat("MM-yyyy", Locale.getDefault())
         val labelSdf = SimpleDateFormat("MMM", Locale.getDefault())
@@ -74,33 +62,22 @@ fun HomeScreen(viewModel: DashboardViewModel) {
         data
     }
 
-    // Removed windowInsetsPadding(WindowInsets.systemBars)
     Box(
-        modifier = Modifier.fillMaxSize()
+        modifier = modifier
+            .fillMaxSize()
+            .navigationBarsPadding()
     ) {
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(bottom = 32.dp)
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                top = 16.dp,
+                end = 16.dp,
+                bottom = 100.dp // Added extra padding for bottom navigation
+            )
         ) {
-            item {
-                Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-                    Text(
-                        text = greeting,
-                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = stringResource(R.string.financial_overview),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
-                }
-            }
-
             item {
                 HeroBalanceCard(
                     totalBalance = totalBalance,
@@ -192,6 +169,10 @@ fun HomeScreen(viewModel: DashboardViewModel) {
                         }
                     }
                 }
+            }
+            
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }

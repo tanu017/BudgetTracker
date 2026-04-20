@@ -2,18 +2,27 @@ package com.example.budgettracker.ui.home
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -22,12 +31,12 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import com.example.budgettracker.R
 import com.example.budgettracker.ui.home.components.HeroBalanceCard
-import com.example.budgettracker.ui.home.components.HomeTransactionPreviewItem
-import com.example.budgettracker.ui.transactions.components.*
 import com.example.budgettracker.ui.transactions.engine.*
 import com.example.budgettracker.viewmodel.DashboardViewModel
 import com.example.budgettracker.ui.transactions.model.MonthlyAnalytics
 import com.example.budgettracker.ui.transactions.model.TransactionListItem
+import com.example.budgettracker.ui.transactions.model.BudgetHealthMetrics
+import com.example.budgettracker.ui.transactions.model.SmartInsight
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -57,7 +66,6 @@ fun HomeScreen(
     
     val savingsRate = (healthMetrics.savingsRatio * 100).toInt()
 
-    // Calculate today's stats for micro-summary
     val today = remember {
         Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0)
@@ -93,7 +101,7 @@ fun HomeScreen(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
             contentPadding = PaddingValues(
                 start = 16.dp,
                 top = 16.dp,
@@ -118,91 +126,250 @@ fun HomeScreen(
             }
 
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    SmartInsightsCard(insights = insights)
-                    HealthInsightsChips(metrics = healthMetrics)
-                }
+                InsightPills(metrics = healthMetrics, insights = insights)
             }
 
             item { 
-                AnalyticsCard(data = monthlyData) 
+                HomeAnalyticsCard(data = monthlyData) 
             }
 
             item {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = stringResource(R.string.recent_transactions),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "See All",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable {
-                                    navController.navigate("transactions") {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
-                                        }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                    
-                    Text(
-                        text = "${todayTransactions.size} transactions today • ₹${"%,.0f".format(todaySpent)} spent",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
-                    )
-
-                    if (consolidatedTransactions.isEmpty()) {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
-                        ) {
-                            Text(
-                                text = stringResource(R.string.no_records_found),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        }
-                    } else {
-                        consolidatedTransactions.take(4).forEach { listItem ->
-                            when (listItem) {
-                                is TransactionListItem.Regular -> {
-                                    HomeTransactionPreviewItem(transaction = listItem.transaction)
-                                }
-                                is TransactionListItem.Transfer -> {
-                                    HomeTransactionPreviewItem(
-                                        transaction = listItem.sourceEntity,
-                                        overrideTitle = "${listItem.fromAccount} → ${listItem.toAccount}",
-                                        isTransfer = true
-                                    )
-                                }
+                ActivitySection(
+                    transactions = consolidatedTransactions.take(4),
+                    todayStats = "${todayTransactions.size} transactions today • ₹${"%,.0f".format(todaySpent)} spent",
+                    onSeeAllClick = {
+                        navController.navigate("transactions") {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
                             }
-                            Spacer(Modifier.height(12.dp))
+                            launchSingleTop = true
+                            restoreState = true
                         }
                     }
-                }
+                )
             }
             
             item {
                 Spacer(modifier = Modifier.height(16.dp))
             }
         }
+    }
+}
+
+@Composable
+fun InsightPills(metrics: BudgetHealthMetrics, insights: List<SmartInsight>) {
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(vertical = 4.dp)
+    ) {
+        item {
+            InsightPill(icon = Icons.Default.Favorite, text = "Health ${metrics.score}", iconColor = Color.Red)
+        }
+        item {
+            InsightPill(icon = Icons.Default.TrendingUp, text = "Savings ${(metrics.savingsRatio * 100).toInt()}%", iconColor = Color(0xFF4CAF50))
+        }
+        val topCategory = insights.find { it.title == "Top Category" }
+        if (topCategory != null) {
+            val amountPart = topCategory.value.split("•").lastOrNull()?.trim() ?: ""
+            item {
+                InsightPill(icon = Icons.Default.Whatshot, text = "Top $amountPart", iconColor = Color(0xFFFF9800))
+            }
+        }
+    }
+}
+
+@Composable
+fun InsightPill(icon: ImageVector, text: String, iconColor: Color) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = iconColor)
+            Text(text = text, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
+@Composable
+fun HomeAnalyticsCard(data: List<MonthlyAnalytics>) {
+    if (data.isEmpty()) return
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(0.dp),
+        border = CardDefaults.outlinedCardBorder(enabled = true)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                text = "Monthly Analytics",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+            
+            val maxVal = (data.maxOfOrNull { maxOf(it.income, it.expense) } ?: 100f).coerceAtLeast(100f)
+
+            Box(modifier = Modifier.fillMaxWidth().height(150.dp)) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val canvasWidth = size.width
+                    val canvasHeight = size.height
+                    val barWidthPx = 12.dp.toPx()
+                    val groupWidthPx = barWidthPx * 2.5f
+                    val spacing = (canvasWidth - (data.size * groupWidthPx)) / (data.size + 1)
+                    
+                    data.forEachIndexed { index, item ->
+                        val xBase = spacing + index * (groupWidthPx + spacing)
+                        
+                        // Income Bar
+                        val incomeHeight = (item.income / maxVal) * canvasHeight
+                        drawRect(
+                            color = Color(0xFF4CAF50),
+                            topLeft = Offset(xBase, canvasHeight - incomeHeight),
+                            size = Size(barWidthPx, incomeHeight)
+                        )
+                        
+                        // Expense Bar
+                        val expenseHeight = (item.expense / maxVal) * canvasHeight
+                        drawRect(
+                            color = Color(0xFFF44336),
+                            topLeft = Offset(xBase + barWidthPx + 4.dp.toPx(), canvasHeight - expenseHeight),
+                            size = Size(barWidthPx, expenseHeight)
+                        )
+                    }
+                }
+            }
+            
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                data.forEach { item ->
+                    Text(
+                        text = item.label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ActivitySection(
+    transactions: List<TransactionListItem>,
+    todayStats: String,
+    onSeeAllClick: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Activity",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "See All",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable { onSeeAllClick() }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            )
+        }
+        
+        Text(
+            text = todayStats,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
+        )
+
+        if (transactions.isEmpty()) {
+            Text(
+                text = stringResource(R.string.no_records_found),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.padding(vertical = 16.dp)
+            )
+        } else {
+            transactions.forEachIndexed { index, listItem ->
+                ActivityItem(listItem)
+                if (index < transactions.size - 1) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 12.dp),
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ActivityItem(listItem: TransactionListItem) {
+    val title: String
+    val subtitle: String
+    val amount: Double
+    val isIncome: Boolean
+
+    when (listItem) {
+        is TransactionListItem.Regular -> {
+            title = listItem.transaction.category
+            val dateStr = SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(listItem.transaction.timestamp))
+            subtitle = "${listItem.transaction.type} • $dateStr"
+            amount = listItem.transaction.amount
+            isIncome = listItem.transaction.type == "INCOME"
+        }
+        is TransactionListItem.Transfer -> {
+            title = "${listItem.fromAccount} → ${listItem.toAccount}"
+            val dateStr = SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(listItem.sourceEntity.timestamp))
+            subtitle = "Transfer • $dateStr"
+            amount = listItem.sourceEntity.amount
+            isIncome = false
+        }
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(
+            text = "₹${"%,.0f".format(amount)}",
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
+            color = if (isIncome) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 

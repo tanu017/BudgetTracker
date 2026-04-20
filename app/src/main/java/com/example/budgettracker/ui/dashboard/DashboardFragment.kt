@@ -32,9 +32,7 @@ import com.example.budgettracker.viewmodel.DashboardViewModel
 import com.example.budgettracker.ui.transactions.engine.TransactionConsolidationEngine
 import com.example.budgettracker.ui.transactions.model.TransactionListItem
 import com.example.budgettracker.ui.transactions.utils.TransactionDateUtils
-import com.example.budgettracker.ui.dashboard.components.MonthlyTrendChart
-import com.example.budgettracker.ui.dashboard.components.CategoryPieChart
-import com.example.budgettracker.ui.dashboard.components.AccountBalanceChart
+import com.example.budgettracker.ui.dashboard.components.*
 import com.github.mikephil.charting.charts.BarChart
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.BarData
@@ -147,37 +145,8 @@ fun DashboardFragment(viewModel: DashboardViewModel) {
             AccountBalanceChart(data = accounts)
         }
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            elevation = CardDefaults.cardElevation(2.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(
-                    text = "Top Spending Categories",
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                if (expensesByCategory.isNotEmpty()) {
-                    AndroidView(
-                        factory = { ctx ->
-                            BarChart(ctx).apply {
-                                setupChartStyle(this)
-                            }
-                        },
-                        update = { chart ->
-                            updateCategoryChart(chart, expensesByCategory)
-                        },
-                        modifier = Modifier.fillMaxWidth().height(220.dp)
-                    )
-                } else {
-                    Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                        Text(text = "No records found", color = Color.Gray, fontSize = 14.sp)
-                    }
-                }
-            }
-        }
+        // Using the new adaptive component for Top Spending Categories
+        TopSpendingCategoriesChart(expensesByCategory = expensesByCategory)
 
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -189,7 +158,8 @@ fun DashboardFragment(viewModel: DashboardViewModel) {
                 Text(
                     text = "Spending Ratio",
                     fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 val spendingRatio = if (totalIncome > 0) (totalExpense / totalIncome).toFloat().coerceIn(0f, 1f) else 0f
                 LinearProgressIndicator(
@@ -202,7 +172,7 @@ fun DashboardFragment(viewModel: DashboardViewModel) {
                 Text(
                     text = "%.0f%% of income spent".format(spendingRatio * 100),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.secondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -217,7 +187,8 @@ fun DashboardFragment(viewModel: DashboardViewModel) {
                     text = "Top Transactions",
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(start = 4.dp)
+                    modifier = Modifier.padding(start = 4.dp),
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -355,57 +326,5 @@ fun InsightCard(
                 )
             }
         }
-    }
-}
-
-private fun setupChartStyle(chart: BarChart) {
-    chart.description.isEnabled = false
-    chart.legend.isEnabled = false
-    chart.setDrawGridBackground(false)
-    chart.setTouchEnabled(false)
-    chart.setFitBars(true)
-    chart.animateY(800)
-
-    chart.xAxis.apply {
-        position = XAxis.XAxisPosition.BOTTOM
-        setDrawGridLines(false)
-        setDrawAxisLine(false)
-        granularity = 1f
-        textColor = AndroidColor.GRAY
-        textSize = 10f
-    }
-
-    chart.axisLeft.apply {
-        setDrawGridLines(true)
-        gridColor = AndroidColor.LTGRAY
-        axisLineColor = AndroidColor.TRANSPARENT
-        axisMinimum = 0f
-        textColor = AndroidColor.GRAY
-    }
-
-    chart.axisRight.isEnabled = false
-}
-
-private fun updateCategoryChart(chart: BarChart, categories: List<Pair<String, Double>>) {
-    val entries = categories.mapIndexed { index, pair -> BarEntry(index.toFloat(), pair.second.toFloat()) }
-    val dataSet = BarDataSet(entries, "Categories").apply {
-        color = AndroidColor.parseColor("#673AB7") // Modern Purple
-        valueFormatter = object : com.github.mikephil.charting.formatter.ValueFormatter() {
-            override fun getFormattedValue(value: Float): String = formatAmount(value)
-        }
-        setDrawValues(true)
-        valueTextSize = 10f
-    }
-    
-    chart.data = BarData(dataSet).apply { barWidth = 0.5f }
-    chart.xAxis.valueFormatter = IndexAxisValueFormatter(categories.map { it.first })
-    chart.invalidate()
-}
-
-private fun formatAmount(value: Float): String {
-    return when {
-        value >= 100000 -> "₹%.1fL".format(value / 100000f)
-        value >= 1000 -> "₹%.1fk".format(value / 1000f)
-        else -> "₹%.0f".format(value)
     }
 }

@@ -3,6 +3,7 @@ package com.example.budgettracker.ui.home
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,6 +18,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import com.example.budgettracker.R
 import com.example.budgettracker.ui.home.components.HeroBalanceCard
 import com.example.budgettracker.ui.home.components.HomeTransactionPreviewItem
@@ -29,7 +32,11 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
-fun HomeScreen(viewModel: DashboardViewModel, modifier: Modifier = Modifier) {
+fun HomeScreen(
+    viewModel: DashboardViewModel, 
+    navController: NavController,
+    modifier: Modifier = Modifier
+) {
     val transactions by viewModel.allTransactions.observeAsState(initial = emptyList())
     val accounts by viewModel.allAccounts.observeAsState(initial = emptyList())
 
@@ -49,6 +56,18 @@ fun HomeScreen(viewModel: DashboardViewModel, modifier: Modifier = Modifier) {
     }
     
     val savingsRate = (healthMetrics.savingsRatio * 100).toInt()
+
+    // Calculate today's stats for micro-summary
+    val today = remember {
+        Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
+    val todayTransactions = transactions.filter { it.timestamp >= today && it.type != "TRANSFER" }
+    val todaySpent = todayTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
 
     val monthlyData = remember(transactions) {
         val sdf = SimpleDateFormat("MM-yyyy", Locale.getDefault())
@@ -106,23 +125,47 @@ fun HomeScreen(viewModel: DashboardViewModel, modifier: Modifier = Modifier) {
             }
 
             item { 
-                Box(modifier = Modifier.padding(vertical = 8.dp)) {
-                    AnalyticsCard(data = monthlyData) 
-                }
+                AnalyticsCard(data = monthlyData) 
             }
 
             item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp)
-                ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = stringResource(R.string.recent_transactions),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "See All",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable {
+                                    navController.navigate("transactions") {
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                    
                     Text(
-                        text = stringResource(R.string.recent_transactions),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 12.dp)
+                        text = "${todayTransactions.size} transactions today • ₹${"%,.0f".format(todaySpent)} spent",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
                     )
+
                     if (consolidatedTransactions.isEmpty()) {
                         Surface(
                             modifier = Modifier.fillMaxWidth(),

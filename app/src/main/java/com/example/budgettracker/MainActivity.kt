@@ -118,6 +118,8 @@ fun BudgetTrackerApp(
     }
 
     Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets.systemBars,
         topBar = {
             HomeTopBar(
                 name = userName,
@@ -181,15 +183,37 @@ fun BudgetTrackerApp(
         NavHost(
             navController = navController,
             startDestination = Screen.Home.route,
-            modifier = Modifier.padding(innerPadding),
+            modifier = Modifier.fillMaxSize(),
             enterTransition = { fadeIn() },
             exitTransition = { fadeOut() }
         ) {
-            composable(Screen.Home.route) { HomeScreen(viewModel = dashboardViewModel) }
-            composable(Screen.Transactions.route) { TransactionScreen() }
-            composable(Screen.ChatBot.route) { ChatScreen(viewModel = chatViewModel) }
-            composable(Screen.Accounts.route) { AccountsFragment() }
-            composable(Screen.Dashboard.route) { DashboardFragment(viewModel = dashboardViewModel) }
+            composable(Screen.Home.route) { 
+                HomeScreen(
+                    viewModel = dashboardViewModel,
+                    navController = navController,
+                    modifier = Modifier.padding(innerPadding)
+                ) 
+            }
+            composable(Screen.Transactions.route) { 
+                Surface(modifier = Modifier.padding(innerPadding)) {
+                    TransactionScreen() 
+                }
+            }
+            composable(Screen.ChatBot.route) { 
+                Surface(modifier = Modifier.padding(innerPadding)) {
+                    ChatScreen(viewModel = chatViewModel) 
+                }
+            }
+            composable(Screen.Accounts.route) { 
+                Surface(modifier = Modifier.padding(innerPadding)) {
+                    AccountsFragment() 
+                }
+            }
+            composable(Screen.Dashboard.route) { 
+                Surface(modifier = Modifier.padding(innerPadding)) {
+                    DashboardFragment(viewModel = dashboardViewModel) 
+                }
+            }
         }
     }
 }

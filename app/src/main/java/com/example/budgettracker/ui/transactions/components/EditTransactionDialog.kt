@@ -1,14 +1,21 @@
 package com.example.budgettracker.ui.transactions.components
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.example.budgettracker.data.local.entities.TransactionEntity
 import com.example.budgettracker.ui.transactions.utils.TransactionDateUtils
 
@@ -47,83 +54,177 @@ fun EditTransactionDialog(
         }
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Edit Transaction") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateContentSize(),
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Edit Transaction",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                // Amount Field
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { amountText = it },
                     label = { Text("Amount") },
+                    placeholder = { Text("0.00") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedContainerColor = Color.Transparent
+                    )
                 )
+
+                // Category Field
                 OutlinedTextField(
                     value = categoryText,
                     onValueChange = { categoryText = it },
                     label = { Text("Category") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = TransactionDateUtils.formatDate(selectedDate),
-                    onValueChange = { },
-                    label = { Text("Date") },
-                    readOnly = true,
-                    enabled = false,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showDatePicker = true },
+                    placeholder = { Text("e.g. Food, Transport") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                        disabledBorderColor = MaterialTheme.colorScheme.outline
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedContainerColor = Color.Transparent
                     )
                 )
+
+                // Date Field
+                Box(modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true }) {
+                    OutlinedTextField(
+                        value = TransactionDateUtils.formatDate(selectedDate),
+                        onValueChange = { },
+                        label = { Text("Date") },
+                        readOnly = true,
+                        enabled = false,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                            disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledContainerColor = Color.Transparent
+                        )
+                    )
+                }
+
+                // Income/Expense Toggle
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    val incomeSelected = selectedType == "INCOME"
+                    val expenseSelected = selectedType == "EXPENSE"
+
+                    // Income Button (Pill)
+                    Surface(
+                        onClick = { selectedType = "INCOME" },
+                        modifier = Modifier.weight(1f).height(46.dp),
+                        shape = RoundedCornerShape(23.dp),
+                        color = if (incomeSelected) Color(0xFFE8F5E9) else MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(
+                            1.dp,
+                            if (incomeSelected) Color(0xFF4CAF50).copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                        )
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                "Income",
+                                color = if (incomeSelected) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = if (incomeSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+
+                    // Expense Button (Pill)
+                    Surface(
+                        onClick = { selectedType = "EXPENSE" },
+                        modifier = Modifier.weight(1f).height(46.dp),
+                        shape = RoundedCornerShape(23.dp),
+                        color = if (expenseSelected) Color(0xFFFFEBEE) else MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(
+                            1.dp,
+                            if (expenseSelected) Color(0xFFEF5350).copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                        )
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                "Expense",
+                                color = if (expenseSelected) Color(0xFFC62828) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = if (expenseSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Action Buttons
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
-                        onClick = { selectedType = "INCOME" },
-                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            onSave(
+                                transaction.copy(
+                                    amount = amountText.toDoubleOrNull() ?: transaction.amount,
+                                    category = categoryText,
+                                    type = selectedType,
+                                    timestamp = selectedDate
+                                )
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedType == "INCOME") Color(0xFF4CAF50) else Color.Gray
+                            containerColor = MaterialTheme.colorScheme.primary
                         )
                     ) {
-                        Text("Income")
-                    }
-                    Button(
-                        onClick = { selectedType = "EXPENSE" },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedType == "EXPENSE") Color(0xFFF44336) else Color.Gray
+                        Text(
+                            "Save Changes",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
                         )
+                    }
+
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Expense")
+                        Text(
+                            "Cancel",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    onSave(
-                        transaction.copy(
-                            amount = amountText.toDoubleOrNull() ?: 0.0,
-                            category = categoryText,
-                            type = selectedType,
-                            timestamp = selectedDate
-                        )
-                    )
-                }
-            ) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
             }
         }
-    )
+    }
 }

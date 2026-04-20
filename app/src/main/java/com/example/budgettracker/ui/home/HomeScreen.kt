@@ -8,11 +8,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.material.icons.filled.Whatshot
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
@@ -371,15 +370,8 @@ fun ActivitySection(
                 modifier = Modifier.padding(vertical = 16.dp)
             )
         } else {
-            transactions.forEachIndexed { index, listItem ->
+            transactions.forEach { listItem ->
                 ActivityItem(listItem)
-                if (index < transactions.size - 1) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 12.dp),
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant
-                    )
-                }
             }
         }
     }
@@ -391,6 +383,7 @@ fun ActivityItem(listItem: TransactionListItem) {
     val subtitle: String
     val amount: Double
     val isIncome: Boolean
+    val type: String
 
     when (listItem) {
         is TransactionListItem.Regular -> {
@@ -399,6 +392,7 @@ fun ActivityItem(listItem: TransactionListItem) {
             subtitle = "${listItem.transaction.type} • $dateStr"
             amount = listItem.transaction.amount
             isIncome = listItem.transaction.type == "INCOME"
+            type = listItem.transaction.type
         }
         is TransactionListItem.Transfer -> {
             title = "${listItem.fromAccount} → ${listItem.toAccount}"
@@ -406,33 +400,80 @@ fun ActivityItem(listItem: TransactionListItem) {
             subtitle = "Transfer • $dateStr"
             amount = listItem.sourceEntity.amount
             isIncome = false
+            type = "TRANSFER"
         }
     }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(2.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                val iconBgColor = if (isIncome) Color(0xFF4CAF50).copy(alpha = 0.1f) 
+                                 else if (type == "TRANSFER") MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)
+                                 else MaterialTheme.colorScheme.error.copy(alpha = 0.1f)
+                
+                val iconColor = if (isIncome) Color(0xFF4CAF50) 
+                               else if (type == "TRANSFER") MaterialTheme.colorScheme.secondary
+                               else MaterialTheme.colorScheme.error
+
+                val icon = if (isIncome) Icons.Default.ArrowUpward 
+                          else if (type == "TRANSFER") Icons.Default.SyncAlt
+                          else Icons.Default.ArrowDownward
+
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(iconBgColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = iconColor
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
+                text = "${if (isIncome) "+" else "-"}₹${"%,.0f".format(amount)}",
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (isIncome) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface
             )
         }
-        Text(
-            text = "₹${"%,.0f".format(amount)}",
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold,
-            color = if (isIncome) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface
-        )
     }
 }
 

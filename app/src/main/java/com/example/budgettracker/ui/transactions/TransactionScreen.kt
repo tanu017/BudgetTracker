@@ -1,6 +1,5 @@
 package com.example.budgettracker.ui.transactions
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -23,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.budgettracker.data.local.AppDatabase
 import com.example.budgettracker.data.local.entities.TransactionEntity
@@ -121,7 +121,6 @@ fun TransactionScreen() {
         )
     }
 
-    // Removed windowInsetsPadding(WindowInsets.systemBars) as edge-to-edge is disabled
     Box(
         modifier = Modifier.fillMaxSize()
     ) {
@@ -135,42 +134,46 @@ fun TransactionScreen() {
         ) {
             item {
                 Card(
-                    modifier = Modifier.fillMaxWidth().animateContentSize(),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(2.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateContentSize(),
+                    shape = RoundedCornerShape(20.dp),
+                    elevation = CardDefaults.cardElevation(6.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
-                    Column {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { isAddFormVisible = !isAddFormVisible }
-                                .padding(16.dp),
+                                .clickable { isAddFormVisible = !isAddFormVisible },
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                Spacer(Modifier.width(8.dp))
+                                Icon(
+                                    Icons.Default.Add, 
+                                    contentDescription = null, 
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(Modifier.width(12.dp))
                                 Text(
                                     text = "Add New Record",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                             Icon(
                                 if (isAddFormVisible) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                contentDescription = null
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         if (isAddFormVisible) {
-                            Divider(modifier = Modifier.padding(horizontal = 16.dp))
-                            Box(modifier = Modifier.padding(12.dp)) {
-                                AddTransactionForm(onSave = { 
-                                    viewModel.insertTransaction(it)
-                                    isAddFormVisible = false
-                                })
-                            }
+                            AddTransactionForm(onSave = { 
+                                viewModel.insertTransaction(it)
+                                isAddFormVisible = false
+                            })
                         }
                     }
                 }

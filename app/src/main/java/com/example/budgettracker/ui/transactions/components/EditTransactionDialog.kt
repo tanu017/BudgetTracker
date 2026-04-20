@@ -1,7 +1,9 @@
 package com.example.budgettracker.ui.transactions.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -56,11 +58,22 @@ fun EditTransactionDialog(
     val accounts by viewModel.allAccounts.observeAsState(initial = emptyList())
 
     var amountText by remember { mutableStateOf(transaction.amount.toString()) }
-    var categoryText by remember { mutableStateOf(transaction.category) }
+    
+    // Category state with pre-fill logic
+    var selectedCategory by remember { 
+        mutableStateOf(
+            defaultCategories.find { it.name == transaction.category } 
+            ?: defaultCategories.find { it.isCustom }
+        ) 
+    }
+    var customCategoryText by remember { 
+        mutableStateOf(if (selectedCategory?.isCustom == true) transaction.category else "") 
+    }
+    var expanded by remember { mutableStateOf(false) }
+
     var selectedType by remember { mutableStateOf(transaction.type) }
     var selectedDate by remember { mutableStateOf(transaction.timestamp) }
     
-    // STEP 4 — Pre-fill account in Edit screen
     var selectedAccountId by remember { mutableStateOf(transaction.accountId) }
     val selectedAccount = accounts.find { it.id == selectedAccountId }
 
@@ -128,24 +141,69 @@ fun EditTransactionDialog(
                     )
                 )
 
-                // Category Field
-                OutlinedTextField(
-                    value = categoryText,
-                    onValueChange = { categoryText = it },
-                    label = { Text("Category") },
-                    placeholder = { Text("e.g. Food, Transport") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                        unfocusedContainerColor = Color.Transparent,
-                        focusedContainerColor = Color.Transparent
+                // Category Dropdown
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = selectedCategory?.name ?: "",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Category") },
+                        placeholder = { Text("Select a category") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                            unfocusedContainerColor = Color.Transparent,
+                            focusedContainerColor = Color.Transparent
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
                     )
-                )
 
-                // STEP 3 — Reusable Account Dropdown
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false },
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                    ) {
+                        defaultCategories.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option.name) },
+                                onClick = {
+                                    selectedCategory = option
+                                    expanded = false
+                                },
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
+                        }
+                    }
+                }
+
+                // Custom Category Field
+                AnimatedVisibility(visible = selectedCategory?.isCustom == true) {
+                    OutlinedTextField(
+                        value = customCategoryText,
+                        onValueChange = { customCategoryText = it },
+                        label = { Text("Enter category name") },
+                        placeholder = { Text("e.g. Gift, Bonus") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                            unfocusedContainerColor = Color.Transparent,
+                            focusedContainerColor = Color.Transparent
+                        )
+                    )
+                }
+
+                // Account Dropdown
                 AccountDropdown(
                     accounts = accounts,
                     selectedAccountId = selectedAccountId,
@@ -231,11 +289,16 @@ fun EditTransactionDialog(
                 ) {
                     Button(
                         onClick = {
-                            // STEP 5 — Save updated transaction
+                            val finalCategory = if (selectedCategory?.isCustom == true) {
+                                customCategoryText
+                            } else {
+                                selectedCategory?.name ?: transaction.category
+                            }
+                            
                             onSave(
                                 transaction.copy(
                                     amount = amountText.toDoubleOrNull() ?: transaction.amount,
-                                    category = categoryText,
+                                    category = finalCategory,
                                     type = selectedType,
                                     timestamp = selectedDate,
                                     accountId = selectedAccountId,

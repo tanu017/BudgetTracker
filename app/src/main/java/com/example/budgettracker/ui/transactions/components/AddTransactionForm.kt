@@ -1,6 +1,8 @@
 package com.example.budgettracker.ui.transactions.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +20,24 @@ import com.example.budgettracker.data.local.entities.TransactionEntity
 import com.example.budgettracker.ui.transactions.utils.TransactionDateUtils
 import com.example.budgettracker.utils.Constants
 
+data class CategoryOption(
+    val name: String,
+    val isCustom: Boolean = false
+)
+
+val defaultCategories = listOf(
+    CategoryOption("Food"),
+    CategoryOption("Bills"),
+    CategoryOption("Groceries"),
+    CategoryOption("Travel"),
+    CategoryOption("Entertainment"),
+    CategoryOption("Shopping"),
+    CategoryOption("Health"),
+    CategoryOption("Investments"),
+    CategoryOption("Education"),
+    CategoryOption("Other", isCustom = true)
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTransactionForm(
@@ -25,7 +45,10 @@ fun AddTransactionForm(
     onSave: (TransactionEntity) -> Unit
 ) {
     var amountText by remember { mutableStateOf("") }
-    var categoryText by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf<CategoryOption?>(null) }
+    var customCategoryText by remember { mutableStateOf("") }
+    var expanded by remember { mutableStateOf(false) }
+    
     var selectedType by remember { mutableStateOf("EXPENSE") }
     var selectedDate by remember { mutableStateOf(System.currentTimeMillis()) }
     
@@ -83,22 +106,66 @@ fun AddTransactionForm(
             )
         )
 
-        // Category Field
-        OutlinedTextField(
-            value = categoryText,
-            onValueChange = { categoryText = it; errorMessage = null },
-            label = { Text("Category") },
-            placeholder = { Text("e.g. Food, Transport") },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+        // Category Dropdown
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            OutlinedTextField(
+                value = selectedCategory?.name ?: "",
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Category") },
+                placeholder = { Text("Select a category") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                ),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth()
             )
-        )
 
-        // Account Selector (Using reusable component)
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+            ) {
+                defaultCategories.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option.name) },
+                        onClick = {
+                            selectedCategory = option
+                            expanded = false
+                            errorMessage = null
+                        },
+                        contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                    )
+                }
+            }
+        }
+
+        // Custom Category Field (Only visible when "Other" is selected)
+        AnimatedVisibility(visible = selectedCategory?.isCustom == true) {
+            OutlinedTextField(
+                value = customCategoryText,
+                onValueChange = { customCategoryText = it; errorMessage = null },
+                label = { Text("Enter category name") },
+                placeholder = { Text("e.g. Gift, Bonus") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                )
+            )
+        }
+
+        // Account Selector
         AccountDropdown(
             accounts = accounts,
             selectedAccountId = selectedAccountId,
@@ -188,12 +255,18 @@ fun AddTransactionForm(
         Button(
             onClick = {
                 val amount = amountText.toDoubleOrNull()
-                if (amount != null && amount > 0 && categoryText.isNotBlank() && selectedAccount != null) {
+                val finalCategory = if (selectedCategory?.isCustom == true) {
+                    customCategoryText
+                } else {
+                    selectedCategory?.name
+                }
+
+                if (amount != null && amount > 0 && !finalCategory.isNullOrBlank() && selectedAccount != null) {
                     onSave(
                         TransactionEntity(
                             amount = amount,
                             type = selectedType,
-                            category = categoryText,
+                            category = finalCategory,
                             accountId = selectedAccountId,
                             accountName = selectedAccount.accountName,
                             source = "MANUAL",
@@ -201,7 +274,8 @@ fun AddTransactionForm(
                         )
                     )
                     amountText = ""
-                    categoryText = ""
+                    selectedCategory = null
+                    customCategoryText = ""
                     selectedDate = System.currentTimeMillis()
                     errorMessage = null
                 } else if (selectedAccount == null) {

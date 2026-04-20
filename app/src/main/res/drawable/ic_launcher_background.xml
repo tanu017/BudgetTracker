@@ -4,7 +4,8 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Soft lavender background surface -->
     <path
-        android:fillColor="#1A237E"
+        android:fillColor="#E0D7FF"
         android:pathData="M0,0h108v108h-108z" />
 </vector>

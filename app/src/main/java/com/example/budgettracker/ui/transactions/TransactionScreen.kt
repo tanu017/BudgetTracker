@@ -1,5 +1,6 @@
 package com.example.budgettracker.ui.transactions
 
+import android.widget.Toast
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -33,6 +34,7 @@ import com.example.budgettracker.ui.transactions.utils.TransactionDateUtils
 import com.example.budgettracker.ui.transactions.model.TransactionListItem
 import com.example.budgettracker.ui.transactions.engine.TransactionConsolidationEngine
 import com.example.budgettracker.parser.toTransactionEntity
+import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -59,6 +61,13 @@ fun TransactionScreen() {
 
     val transactions by viewModel.allTransactions.observeAsState(initial = emptyList())
     val accounts by accountsViewModel.allAccounts.observeAsState(initial = emptyList())
+
+    // Observe UI events (like insufficient balance errors)
+    LaunchedEffect(viewModel.uiEvent) {
+        viewModel.uiEvent.collectLatest { message ->
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        }
+    }
 
     var selectedTypeFilter by remember { mutableStateOf("ALL") }
     var selectedCategoryFilter by remember { mutableStateOf("ALL") }

@@ -8,6 +8,10 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.budgettracker.data.local.dao.*
 import com.example.budgettracker.data.local.entities.*
+import com.example.budgettracker.utils.Constants
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * Main Room Database class for the application.
@@ -78,6 +82,41 @@ abstract class AppDatabase : RoomDatabase() {
                     "budget_tracker_db"
                 )
                 .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addCallback(object : RoomDatabase.Callback() {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        super.onCreate(db)
+                        // Pre-populate with default Cash account
+                        CoroutineScope(Dispatchers.IO).launch {
+                            INSTANCE?.accountDao()?.insertAccount(
+                                AccountEntity(
+                                    id = Constants.DEFAULT_ACCOUNT_ID,
+                                    accountName = Constants.DEFAULT_ACCOUNT_NAME,
+                                    accountType = "CASH",
+                                    balance = 0.0
+                                )
+                            )
+                        }
+                    }
+                    
+                    override fun onOpen(db: SupportSQLiteDatabase) {
+                        super.onOpen(db)
+                        // Ensure Cash account exists even after destructive migration or first run
+                        CoroutineScope(Dispatchers.IO).launch {
+                            val accountDao = INSTANCE?.accountDao()
+                            val accounts = accountDao?.getAllAccountsSync()
+                            if (accounts.isNullOrEmpty()) {
+                                accountDao?.insertAccount(
+                                    AccountEntity(
+                                        id = Constants.DEFAULT_ACCOUNT_ID,
+                                        accountName = Constants.DEFAULT_ACCOUNT_NAME,
+                                        accountType = "CASH",
+                                        balance = 0.0
+                                    )
+                                )
+                            }
+                        }
+                    }
+                })
                 // TODO: Replace with proper migrations in production. 
                 // Using destructive migration to simplify schema changes during development.
                 .fallbackToDestructiveMigration()

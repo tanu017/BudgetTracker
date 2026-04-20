@@ -8,16 +8,24 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.budgettracker.data.local.AppDatabase
+import com.example.budgettracker.data.local.entities.AccountEntity
 import com.example.budgettracker.data.local.entities.TransactionEntity
+import com.example.budgettracker.repository.*
 import com.example.budgettracker.ui.transactions.utils.TransactionDateUtils
+import com.example.budgettracker.viewmodel.BudgetViewModelFactory
+import com.example.budgettracker.viewmodel.TransactionViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -26,10 +34,36 @@ fun EditTransactionDialog(
     onDismiss: () -> Unit,
     onSave: (TransactionEntity) -> Unit
 ) {
+    val context = LocalContext.current
+    val database = remember { AppDatabase.getDatabase(context) }
+    
+    val transactionRepo = remember { TransactionRepository(database.transactionDao()) }
+    val accountRepo = remember { AccountRepository(database.accountDao()) }
+    val categoryRepo = remember { CategoryRepository(database.categoryDao()) }
+    val reminderRepo = remember { ReminderRepository(database.reminderDao()) }
+    val chatRepo = remember { ChatRepository(database.chatDao()) }
+
+    val viewModel: TransactionViewModel = viewModel(
+        factory = BudgetViewModelFactory(
+            transactionRepo,
+            accountRepo,
+            categoryRepo,
+            reminderRepo,
+            chatRepo
+        )
+    )
+
+    val accounts by viewModel.allAccounts.observeAsState(initial = emptyList())
+
     var amountText by remember { mutableStateOf(transaction.amount.toString()) }
     var categoryText by remember { mutableStateOf(transaction.category) }
     var selectedType by remember { mutableStateOf(transaction.type) }
     var selectedDate by remember { mutableStateOf(transaction.timestamp) }
+    
+    // STEP 4 — Pre-fill account in Edit screen
+    var selectedAccountId by remember { mutableStateOf(transaction.accountId) }
+    val selectedAccount = accounts.find { it.id == selectedAccountId }
+
     var showDatePicker by remember { mutableStateOf(false) }
 
     if (showDatePicker) {
@@ -111,6 +145,15 @@ fun EditTransactionDialog(
                     )
                 )
 
+                // STEP 3 — Reusable Account Dropdown
+                AccountDropdown(
+                    accounts = accounts,
+                    selectedAccountId = selectedAccountId,
+                    onAccountSelected = { account ->
+                        selectedAccountId = account.id
+                    }
+                )
+
                 // Date Field
                 Box(modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true }) {
                     OutlinedTextField(
@@ -138,7 +181,6 @@ fun EditTransactionDialog(
                     val incomeSelected = selectedType == "INCOME"
                     val expenseSelected = selectedType == "EXPENSE"
 
-                    // Income Button (Pill)
                     Surface(
                         onClick = { selectedType = "INCOME" },
                         modifier = Modifier.weight(1f).height(46.dp),
@@ -159,7 +201,6 @@ fun EditTransactionDialog(
                         }
                     }
 
-                    // Expense Button (Pill)
                     Surface(
                         onClick = { selectedType = "EXPENSE" },
                         modifier = Modifier.weight(1f).height(46.dp),
@@ -190,12 +231,15 @@ fun EditTransactionDialog(
                 ) {
                     Button(
                         onClick = {
+                            // STEP 5 — Save updated transaction
                             onSave(
                                 transaction.copy(
                                     amount = amountText.toDoubleOrNull() ?: transaction.amount,
                                     category = categoryText,
                                     type = selectedType,
-                                    timestamp = selectedDate
+                                    timestamp = selectedDate,
+                                    accountId = selectedAccountId,
+                                    accountName = selectedAccount?.accountName ?: transaction.accountName
                                 )
                             )
                         },

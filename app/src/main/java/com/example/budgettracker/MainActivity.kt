@@ -5,17 +5,12 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.Chat
-import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
@@ -34,11 +29,15 @@ import androidx.navigation.compose.rememberNavController
 import com.example.budgettracker.data.local.AppDatabase
 import com.example.budgettracker.repository.*
 import com.example.budgettracker.ui.accounts.AccountsFragment
+import com.example.budgettracker.ui.auth.LoginScreen
 import com.example.budgettracker.ui.chatbot.ChatScreen
+import com.example.budgettracker.ui.components.EditNameDialog
+import com.example.budgettracker.ui.components.HomeTopBar
 import com.example.budgettracker.ui.dashboard.DashboardFragment
 import com.example.budgettracker.ui.home.HomeScreen
 import com.example.budgettracker.ui.security.AppLockGate
 import com.example.budgettracker.ui.transactions.TransactionScreen
+import com.example.budgettracker.viewmodel.AuthViewModel
 import com.example.budgettracker.viewmodel.BudgetViewModelFactory
 import com.example.budgettracker.viewmodel.ChatViewModel
 import com.example.budgettracker.viewmodel.DashboardViewModel
@@ -46,22 +45,27 @@ import com.example.budgettracker.viewmodel.DashboardViewModel
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
-        // STEP 2 — Ensure default system behavior
         WindowCompat.setDecorFitsSystemWindows(window, true)
         
         setContent {
-            AppLockGate {
-                // STEP 3 — Fix Compose root layout
-                Scaffold(
-                    modifier = Modifier.fillMaxSize()
-                ) { innerPadding ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding)
-                    ) {
-                        BudgetTrackerApp()
+            val authViewModel: AuthViewModel = viewModel()
+            val userName by authViewModel.userName.collectAsState()
+
+            MaterialTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    if (userName == null) {
+                        LoginScreen(onContinue = { name -> authViewModel.saveUserName(name) })
+                    } else {
+                        AppLockGate {
+                            BudgetTrackerApp(
+                                userName = userName!!, 
+                                onLogout = { authViewModel.clearUser() },
+                                onUpdateName = { authViewModel.saveUserName(it) }
+                            )
+                        }
                     }
                 }
             }
@@ -77,8 +81,13 @@ sealed class Screen(val route: String, val labelId: Int, val icon: androidx.comp
     object Dashboard : Screen("dashboard", R.string.title_dashboard, Icons.Default.Dashboard)
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BudgetTrackerApp() {
+fun BudgetTrackerApp(
+    userName: String, 
+    onLogout: () -> Unit,
+    onUpdateName: (String) -> Unit
+) {
     val context = LocalContext.current
     val database = remember { AppDatabase.getDatabase(context) }
     
@@ -95,10 +104,29 @@ fun BudgetTrackerApp() {
     val navController = rememberNavController()
     val navItems = listOf(Screen.Home, Screen.Transactions, Screen.ChatBot, Screen.Accounts, Screen.Dashboard)
 
+    var showEditDialog by remember { mutableStateOf(false) }
+
+    if (showEditDialog) {
+        EditNameDialog(
+            currentName = userName,
+            onDismiss = { showEditDialog = false },
+            onConfirm = { 
+                onUpdateName(it)
+                showEditDialog = false
+            }
+        )
+    }
+
     Scaffold(
+        topBar = {
+            HomeTopBar(
+                name = userName,
+                onEditName = { showEditDialog = true },
+                onLogout = onLogout
+            )
+        },
         bottomBar = {
             NavigationBar(
-                modifier = Modifier.padding(top = 4.dp), // Removed windowInsetsPadding
                 tonalElevation = 4.dp,
                 containerColor = MaterialTheme.colorScheme.surface
             ) {
@@ -153,7 +181,7 @@ fun BudgetTrackerApp() {
         NavHost(
             navController = navController,
             startDestination = Screen.Home.route,
-            modifier = Modifier.padding(innerPadding), // Use full innerPadding
+            modifier = Modifier.padding(innerPadding),
             enterTransition = { fadeIn() },
             exitTransition = { fadeOut() }
         ) {

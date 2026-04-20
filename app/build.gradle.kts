@@ -57,6 +57,10 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.biometric)
 
+    // Local DataStore
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.coil.compose)
+
     // Room dependencies
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

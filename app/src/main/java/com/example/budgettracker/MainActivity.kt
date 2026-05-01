@@ -29,6 +29,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.budgettracker.ui.accounts.AccountsFragment
 import com.example.budgettracker.ui.auth.LoginScreen
+import com.example.budgettracker.ui.auth.RegisterScreen
 import com.example.budgettracker.ui.chatbot.ChatScreen
 import com.example.budgettracker.ui.components.EditNameDialog
 import com.example.budgettracker.ui.components.HomeTopBar
@@ -54,26 +55,36 @@ class MainActivity : FragmentActivity() {
             val authViewModel: AuthViewModel = viewModel()
             val chatViewModel: ChatViewModel = viewModel(factory = factory)
             
-            val userName by authViewModel.userName.collectAsState()
-            val themeMode by authViewModel.themeMode.collectAsState()
+            val user by authViewModel.user
+            var showRegister by remember { mutableStateOf(false) }
 
-            BudgetTrackerTheme(
-                darkTheme = themeMode == "dark"
-            ) {
+            BudgetTrackerTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    if (userName == null) {
-                        LoginScreen(onContinue = { name -> authViewModel.saveUserName(name) })
+                    if (user == null) {
+                        if (showRegister) {
+                            RegisterScreen(
+                                viewModel = authViewModel,
+                                onNavigateToLogin = { showRegister = false },
+                                onRegisterSuccess = { showRegister = false }
+                            )
+                        } else {
+                            LoginScreen(
+                                viewModel = authViewModel,
+                                onNavigateToRegister = { showRegister = true },
+                                onLoginSuccess = { /* Automatically handled by user state */ }
+                            )
+                        }
                     } else {
                         AppLockGate {
                             BudgetTrackerApp(
-                                userName = userName!!, 
-                                isDarkMode = themeMode == "dark",
-                                onLogout = { authViewModel.clearUser() },
-                                onUpdateName = { newName -> authViewModel.saveUserName(newName) },
-                                onThemeChange = { isDark -> authViewModel.setTheme(if (isDark) "dark" else "light") },
+                                userName = user?.email?.substringBefore("@") ?: "User", 
+                                isDarkMode = false,
+                                onLogout = { authViewModel.logout { } },
+                                onUpdateName = { },
+                                onThemeChange = { },
                                 onClearChat = { chatViewModel.clearChat() }
                             )
                         }

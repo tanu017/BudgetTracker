@@ -1,38 +1,61 @@
 package com.example.budgettracker.viewmodel
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.budgettracker.utils.UserPreferences
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
+import com.example.budgettracker.repository.AuthRepository
+import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.launch
 
-class AuthViewModel(application: Application) : AndroidViewModel(application) {
-    private val userPreferences = UserPreferences(application)
+class AuthViewModel(private val repository: AuthRepository = AuthRepository()) : ViewModel() {
 
-    val userName: StateFlow<String?> = userPreferences.userName
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    private val _user = mutableStateOf<FirebaseUser?>(repository.getCurrentUser())
+    val user: State<FirebaseUser?> = _user
 
-    val themeMode: StateFlow<String> = userPreferences.themeMode
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "light")
+    private val _isLoading = mutableStateOf(false)
+    val isLoading: State<Boolean> = _isLoading
 
-    fun saveUserName(name: String) {
+    private val _errorMessage = mutableStateOf<String?>(null)
+    val errorMessage: State<String?> = _errorMessage
+
+    fun login(email: String, password: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
-            userPreferences.saveUserName(name)
+            _isLoading.value = true
+            _errorMessage.value = null
+            val result = repository.login(email, password)
+            _isLoading.value = false
+            result.onSuccess {
+                _user.value = it
+                onSuccess()
+            }.onFailure {
+                _errorMessage.value = it.message
+            }
         }
     }
 
-    fun setTheme(mode: String) {
+    fun register(email: String, password: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
-            userPreferences.saveThemeMode(mode)
+            _isLoading.value = true
+            _errorMessage.value = null
+            val result = repository.register(email, password)
+            _isLoading.value = false
+            result.onSuccess {
+                _user.value = it
+                onSuccess()
+            }.onFailure {
+                _errorMessage.value = it.message
+            }
         }
     }
 
-    fun clearUser() {
-        viewModelScope.launch {
-            userPreferences.clear()
-        }
+    fun logout(onSuccess: () -> Unit) {
+        repository.logout()
+        _user.value = null
+        onSuccess()
+    }
+    
+    fun clearError() {
+        _errorMessage.value = null
     }
 }

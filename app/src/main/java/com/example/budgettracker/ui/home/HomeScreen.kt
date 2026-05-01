@@ -52,9 +52,6 @@ fun HomeScreen(
     val transactions by viewModel.allTransactions.observeAsState(initial = emptyList())
     val accounts by viewModel.allAccounts.observeAsState(initial = emptyList())
     
-    // Existing Logout Dialog State
-    var showLogoutDialog by remember { mutableStateOf(false) }
-
     val insights = remember(transactions) { InsightsEngine.calculate(transactions) }
     val healthMetrics = remember(transactions) { BudgetHealthEngine.compute(transactions) }
     
@@ -154,45 +151,10 @@ fun HomeScreen(
                     }
                 )
             }
-            
-            // Bottom Logout Button (Existing)
-            item {
-                Button(
-                    onClick = { showLogoutDialog = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
-                ) {
-                    Icon(Icons.Default.Logout, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Logout", color = MaterialTheme.colorScheme.onErrorContainer)
-                }
-            }
 
             item {
                 Spacer(modifier = Modifier.height(16.dp))
             }
-        }
-        
-        // REUSED AlertDialog Block
-        if (showLogoutDialog) {
-            AlertDialog(
-                onDismissRequest = { showLogoutDialog = false },
-                title = { Text("Logout") },
-                text = { Text("Are you sure you want to sign out of your account?") },
-                confirmButton = {
-                    TextButton(onClick = {
-                        showLogoutDialog = false
-                        onLogout()
-                    }) {
-                        Text("Logout", color = MaterialTheme.colorScheme.error)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showLogoutDialog = false }) {
-                        Text("Cancel")
-                    }
-                }
-            )
         }
     }
 }

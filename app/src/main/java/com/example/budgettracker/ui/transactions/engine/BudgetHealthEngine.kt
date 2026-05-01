@@ -22,11 +22,20 @@ object BudgetHealthEngine {
             tc.get(Calendar.MONTH) == currentMonth && tc.get(Calendar.YEAR) == currentYear
         }
 
-        val income = thisMonth.filter { it.type == "INCOME" }.sumOf { it.amount }
-        val expense = thisMonth.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+        val thisMonthIncome = thisMonth.filter { it.type == "INCOME" }.sumOf { it.amount }
+        val thisMonthExpense = thisMonth.filter { it.type == "EXPENSE" }.sumOf { it.amount }
 
-        val savingsRatio = if (income > 0) ((income - expense) / income).toFloat().coerceIn(0f, 1f) else 0f
-        val dailyAvg = if (currentDay > 0) expense / currentDay else 0.0
+        // Improved Savings Ratio: Use current month if income exists, otherwise fallback to all-time
+        val totalIncome = externalTransactions.filter { it.type == "INCOME" }.sumOf { it.amount }
+        val totalExpense = externalTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+
+        val savingsRatio = when {
+            thisMonthIncome > 0 -> ((thisMonthIncome - thisMonthExpense) / thisMonthIncome).toFloat()
+            totalIncome > 0 -> ((totalIncome - totalExpense) / totalIncome).toFloat()
+            else -> 0f
+        }.coerceIn(0f, 1f)
+
+        val dailyAvg = if (currentDay > 0) thisMonthExpense / currentDay else 0.0
         val predictedSpend = dailyAvg * daysInMonth
 
         val prevMonth = if (currentMonth == 0) 11 else currentMonth - 1
@@ -36,12 +45,12 @@ object BudgetHealthEngine {
             it.type == "EXPENSE" && tc.get(Calendar.MONTH) == prevMonth && tc.get(Calendar.YEAR) == prevYear
         }.sumOf { it.amount }
 
-        val growth = if (prevExpense > 0) ((expense - prevExpense) / prevExpense).toFloat() else 0f
+        val growth = if (prevExpense > 0) ((thisMonthExpense - prevExpense) / prevExpense).toFloat() else 0f
 
         var score = 50
         score += (savingsRatio * 40).toInt()
         if (growth < 0) score += 10
-        if (expense > income && income > 0) score -= 30
+        if (thisMonthExpense > thisMonthIncome && thisMonthIncome > 0) score -= 30
         
         val finalScore = score.coerceIn(0, 100)
         

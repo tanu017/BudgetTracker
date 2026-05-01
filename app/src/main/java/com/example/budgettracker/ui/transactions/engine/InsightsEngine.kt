@@ -12,7 +12,10 @@ object InsightsEngine {
         val externalTransactions = transactions.filter { it.type != "TRANSFER" }
         
         if (externalTransactions.isEmpty()) {
-            return listOf(SmartInsight("Welcome", "Add transactions to see smart insights", "INFO"))
+            return listOf(
+                SmartInsight("Welcome", "Add transactions to see smart insights", "INFO"),
+                SmartInsight("Top Category", "None • ₹0", "INFO")
+            )
         }
 
         val calendar = Calendar.getInstance()
@@ -24,13 +27,20 @@ object InsightsEngine {
             txCal.get(Calendar.MONTH) == currentMonth && txCal.get(Calendar.YEAR) == currentYear
         }
 
-        // Top Category logic
-        thisMonthTransactions.filter { it.type == "EXPENSE" }
+        // Top Category logic - Use all external transactions for a more stable insight if this month is empty
+        val expenseSource = if (thisMonthTransactions.any { it.type == "EXPENSE" }) thisMonthTransactions else externalTransactions
+        val topCategory = expenseSource.filter { it.type == "EXPENSE" }
             .groupBy { it.category }
             .mapValues { it.value.sumOf { tx -> tx.amount } }
-            .maxByOrNull { it.value }?.let {
-                list.add(SmartInsight("Top Category", "${it.key} • ₹${"%.0f".format(it.value)}", "INFO"))
-            }
+            .maxByOrNull { it.value }
+
+        list.add(
+            SmartInsight(
+                title = "Top Category",
+                value = topCategory?.let { "${it.key} • ₹${"%.0f".format(it.value)}" } ?: "None • ₹0",
+                type = "INFO"
+            )
+        )
 
         // MoM Comparison logic
         val prevMonth = if (currentMonth == 0) 11 else currentMonth - 1

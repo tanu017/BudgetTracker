@@ -45,10 +45,15 @@ import java.util.*
 fun HomeScreen(
     viewModel: DashboardViewModel, 
     navController: NavController,
+    onLogout: () -> Unit = {},
+    userName: String = "User",
     modifier: Modifier = Modifier
 ) {
     val transactions by viewModel.allTransactions.observeAsState(initial = emptyList())
     val accounts by viewModel.allAccounts.observeAsState(initial = emptyList())
+    
+    // Existing Logout Dialog State
+    var showLogoutDialog by remember { mutableStateOf(false) }
 
     val insights = remember(transactions) { InsightsEngine.calculate(transactions) }
     val healthMetrics = remember(transactions) { BudgetHealthEngine.compute(transactions) }
@@ -150,9 +155,44 @@ fun HomeScreen(
                 )
             }
             
+            // Bottom Logout Button (Existing)
+            item {
+                Button(
+                    onClick = { showLogoutDialog = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                ) {
+                    Icon(Icons.Default.Logout, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Logout", color = MaterialTheme.colorScheme.onErrorContainer)
+                }
+            }
+
             item {
                 Spacer(modifier = Modifier.height(16.dp))
             }
+        }
+        
+        // REUSED AlertDialog Block
+        if (showLogoutDialog) {
+            AlertDialog(
+                onDismissRequest = { showLogoutDialog = false },
+                title = { Text("Logout") },
+                text = { Text("Are you sure you want to sign out of your account?") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showLogoutDialog = false
+                        onLogout()
+                    }) {
+                        Text("Logout", color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showLogoutDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
         }
     }
 }
@@ -170,12 +210,17 @@ fun InsightPills(metrics: BudgetHealthMetrics, insights: List<SmartInsight>) {
         item {
             InsightPill(icon = Icons.Default.TrendingUp, text = "Savings ${(metrics.savingsRatio * 100).toInt()}%", iconColor = Color(0xFF4CAF50))
         }
+        
+        // Find top category insight or use a default one
         val topCategory = insights.find { it.title == "Top Category" }
-        if (topCategory != null) {
-            val amountPart = topCategory.value.split("•").lastOrNull()?.trim() ?: ""
-            item {
-                InsightPill(icon = Icons.Default.Whatshot, text = "Top $amountPart", iconColor = Color(0xFFFF9800))
-            }
+        val amountPart = topCategory?.value?.split("•")?.lastOrNull()?.trim() ?: "₹0"
+        
+        item {
+            InsightPill(
+                icon = Icons.Default.Whatshot, 
+                text = "Top $amountPart", 
+                iconColor = Color(0xFFFF9800)
+            )
         }
     }
 }

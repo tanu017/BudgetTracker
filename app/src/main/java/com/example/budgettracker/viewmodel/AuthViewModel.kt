@@ -1,17 +1,28 @@
 package com.example.budgettracker.viewmodel
 
+import android.app.Application
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.budgettracker.repository.AuthRepository
+import com.example.budgettracker.utils.UserPreferences
 import com.google.firebase.auth.FirebaseUser
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class AuthViewModel(private val repository: AuthRepository = AuthRepository()) : ViewModel() {
+class AuthViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val repository: AuthRepository = AuthRepository()
+    private val userPreferences = UserPreferences(application)
 
     private val _user = mutableStateOf<FirebaseUser?>(repository.getCurrentUser())
     val user: State<FirebaseUser?> = _user
+
+    val themeMode: StateFlow<String> = userPreferences.themeMode
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "light")
 
     private val _isLoading = mutableStateOf(false)
     val isLoading: State<Boolean> = _isLoading
@@ -31,6 +42,12 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
             }.onFailure {
                 _errorMessage.value = it.message
             }
+        }
+    }
+
+    fun setTheme(mode: String) {
+        viewModelScope.launch {
+            userPreferences.saveThemeMode(mode)
         }
     }
 

@@ -5,6 +5,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -56,9 +57,17 @@ class MainActivity : FragmentActivity() {
             val chatViewModel: ChatViewModel = viewModel(factory = factory)
             
             val user by authViewModel.user
+            val themeMode by authViewModel.themeMode.collectAsState()
+            
+            val isDark = when(themeMode) {
+                "dark" -> true
+                "light" -> false
+                else -> isSystemInDarkTheme()
+            }
+
             var showRegister by remember { mutableStateOf(false) }
 
-            BudgetTrackerTheme {
+            BudgetTrackerTheme(darkTheme = isDark) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -81,10 +90,12 @@ class MainActivity : FragmentActivity() {
                         AppLockGate {
                             BudgetTrackerApp(
                                 userName = user?.email?.substringBefore("@") ?: "User", 
-                                isDarkMode = false,
+                                isDarkMode = isDark,
                                 onLogout = { authViewModel.logout { } },
                                 onUpdateName = { },
-                                onThemeChange = { },
+                                onThemeChange = { dark -> 
+                                    authViewModel.setTheme(if (dark) "dark" else "light")
+                                },
                                 onClearChat = { chatViewModel.clearChat() }
                             )
                         }

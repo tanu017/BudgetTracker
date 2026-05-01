@@ -57,6 +57,7 @@ class MainActivity : FragmentActivity() {
             val chatViewModel: ChatViewModel = viewModel(factory = factory)
             
             val user by authViewModel.user
+            val displayName by authViewModel.displayName
             val themeMode by authViewModel.themeMode.collectAsState()
             
             val isDark = when(themeMode) {
@@ -88,11 +89,21 @@ class MainActivity : FragmentActivity() {
                         }
                     } else {
                         AppLockGate {
+                            val userName = remember(user, displayName) {
+                                if (!displayName.isNullOrBlank()) {
+                                    displayName!!
+                                } else {
+                                    user?.email?.substringBefore("@") ?: "User"
+                                }
+                            }
+                            
                             BudgetTrackerApp(
-                                userName = user?.email?.substringBefore("@") ?: "User", 
+                                userName = userName, 
                                 isDarkMode = isDark,
                                 onLogout = { authViewModel.logout { } },
-                                onUpdateName = { },
+                                onUpdateName = { newName ->
+                                    authViewModel.updateUserName(newName)
+                                },
                                 onThemeChange = { dark -> 
                                     authViewModel.setTheme(if (dark) "dark" else "light")
                                 },
@@ -225,6 +236,7 @@ fun BudgetTrackerApp(
                 HomeScreen(
                     viewModel = dashboardViewModel,
                     navController = navController,
+                    userName = userName,
                     modifier = Modifier.padding(innerPadding)
                 ) 
             }

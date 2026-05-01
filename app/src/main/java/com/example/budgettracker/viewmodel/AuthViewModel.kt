@@ -21,6 +21,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val _user = mutableStateOf<FirebaseUser?>(repository.getCurrentUser())
     val user: State<FirebaseUser?> = _user
 
+    private val _displayName = mutableStateOf<String?>(repository.getCurrentUser()?.displayName)
+    val displayName: State<String?> = _displayName
+
     val themeMode: StateFlow<String> = userPreferences.themeMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "light")
 
@@ -38,6 +41,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             _isLoading.value = false
             result.onSuccess {
                 _user.value = it
+                _displayName.value = it.displayName
                 onSuccess()
             }.onFailure {
                 _errorMessage.value = it.message
@@ -59,7 +63,24 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             _isLoading.value = false
             result.onSuccess {
                 _user.value = it
+                _displayName.value = it.displayName
                 onSuccess()
+            }.onFailure {
+                _errorMessage.value = it.message
+            }
+        }
+    }
+
+    fun updateUserName(newName: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+            val result = repository.updateProfile(newName)
+            _isLoading.value = false
+            result.onSuccess {
+                val currentUser = repository.getCurrentUser()
+                _user.value = currentUser
+                _displayName.value = currentUser?.displayName
             }.onFailure {
                 _errorMessage.value = it.message
             }
@@ -69,6 +90,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     fun logout(onSuccess: () -> Unit) {
         repository.logout()
         _user.value = null
+        _displayName.value = null
         onSuccess()
     }
     

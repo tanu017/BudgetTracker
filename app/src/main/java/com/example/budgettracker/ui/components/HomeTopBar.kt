@@ -21,7 +21,9 @@ fun HomeTopBar(
 ) {
     var expanded by remember { mutableStateOf(false) }
     var showClearChatDialog by remember { mutableStateOf(false) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
 
+    // Clear Chat Confirmation Dialog
     if (showClearChatDialog) {
         AlertDialog(
             onDismissRequest = { showClearChatDialog = false },
@@ -39,6 +41,30 @@ fun HomeTopBar(
             },
             dismissButton = {
                 TextButton(onClick = { showClearChatDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Logout Confirmation Dialog
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            title = { Text("Confirm Logout") },
+            text = { Text("Are you sure you want to logout?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showLogoutDialog = false
+                        onLogout()
+                    }
+                ) {
+                    Text("Logout", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutDialog = false }) {
                     Text("Cancel")
                 }
             }
@@ -76,7 +102,7 @@ fun HomeTopBar(
                     onEditName = onEditName,
                     onThemeChange = onThemeChange,
                     onClearChat = { showClearChatDialog = true },
-                    onLogout = onLogout
+                    onLogout = { showLogoutDialog = true }
                 )
             }
             Spacer(modifier = Modifier.width(16.dp))

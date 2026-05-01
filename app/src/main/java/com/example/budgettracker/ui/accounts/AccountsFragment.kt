@@ -59,6 +59,10 @@ fun AccountsFragment() {
 
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedAccountForEdit by remember { mutableStateOf<AccountEntity?>(null) }
+    
+    // State for delete confirmation dialog
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var accountToDelete by remember { mutableStateOf<AccountEntity?>(null) }
 
     val netWorth: Double = accounts.sumOf { it.balance }
     
@@ -74,7 +78,7 @@ fun AccountsFragment() {
 
     val canTransfer = fromAccount != null && toAccount != null && amountToTransfer > 0 && !hasInsufficientFunds
 
-    // STEP 5 — Hook Add Account dialog
+    // Add Account dialog
     if (showAddDialog) {
         AddAccountDialog(
             onDismiss = { showAddDialog = false },
@@ -96,7 +100,7 @@ fun AccountsFragment() {
         )
     }
 
-    // STEP 6 — Manage edit dialog state
+    // Edit account dialog
     if (selectedAccountForEdit != null) {
         EditAccountDialog(
             account = selectedAccountForEdit!!,
@@ -104,6 +108,39 @@ fun AccountsFragment() {
             onSave = { updatedAccount ->
                 viewModel.updateAccount(updatedAccount)
                 selectedAccountForEdit = null
+            }
+        )
+    }
+
+    // Delete Confirmation Dialog Implementation
+    if (showDeleteDialog && accountToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { 
+                showDeleteDialog = false
+                accountToDelete = null
+            },
+            title = { Text("Delete Account") },
+            text = { Text("Are you sure you want to delete this account? This will also remove associated records.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        accountToDelete?.let { viewModel.deleteAccount(it) }
+                        showDeleteDialog = false
+                        accountToDelete = null
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { 
+                        showDeleteDialog = false
+                        accountToDelete = null
+                    }
+                ) {
+                    Text("Cancel")
+                }
             }
         )
     }
@@ -238,7 +275,7 @@ fun AccountsFragment() {
                 }
             }
 
-            // STEP 1 — Add "Add Account" header with icon
+            // Accounts Header
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -259,11 +296,15 @@ fun AccountsFragment() {
                 }
             }
 
+            // Updated List with confirmation trigger
             items(accounts) { account ->
                 AccountItem(
                     account = account,
                     balance = account.balance,
-                    onDelete = { viewModel.deleteAccount(account) },
+                    onDelete = { 
+                        accountToDelete = account
+                        showDeleteDialog = true 
+                    },
                     onClick = { selectedAccountForEdit = account }
                 )
             }

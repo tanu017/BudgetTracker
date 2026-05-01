@@ -1,6 +1,5 @@
 package com.example.budgettracker.viewmodel
 
-import android.util.Log
 import androidx.lifecycle.*
 import com.example.budgettracker.data.local.entities.AccountEntity
 import com.example.budgettracker.data.local.entities.TransactionEntity
@@ -14,6 +13,8 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel for Transactions.
+ * Handles the business logic for creating, updating, and deleting transactions
+ * while maintaining account balance integrity.
  */
 class TransactionViewModel(
     private val repository: TransactionRepository,
@@ -22,10 +23,8 @@ class TransactionViewModel(
 
     val allTransactions: LiveData<List<TransactionEntity>> = repository.getAllTransactions().asLiveData()
     
-    // Expose accounts for the dropdowns
     val allAccounts: LiveData<List<AccountEntity>> = accountRepository.getAllAccounts().asLiveData()
 
-    // SharedFlow to emit UI events like error messages
     private val _uiEvent = MutableSharedFlow<String>()
     val uiEvent: SharedFlow<String> = _uiEvent
 
@@ -33,56 +32,33 @@ class TransactionViewModel(
         return repository.getTransactionsByType(type).asLiveData()
     }
 
-    /**
-     * STEP 1 — Add validation function
-     */
-    fun canApplyTransaction(accountBalance: Double, amount: Double, type: String): Boolean {
-        return if (type == "EXPENSE") {
-            accountBalance - amount >= 0
-        } else {
-            true // income is always allowed
-        }
-    }
-
-    /**
-     * STEP 2 — Apply validation before inserting transaction
-     */
     fun insertTransaction(transaction: TransactionEntity) = viewModelScope.launch {
         val accounts = accountRepository.getAllAccounts().first()
         val account = accounts.find { it.id == transaction.accountId } ?: return@launch
 
-        // Validate
-        if (!canApplyTransaction(account.balance, transaction.amount, transaction.type)) {
+        if (transaction.type == "EXPENSE" && account.balance - transaction.amount < 0) {
             _uiEvent.emit("Insufficient balance in this account")
             return@launch
         }
 
-        // Apply changes
         repository.insertTransaction(transaction)
 
         val newBalance = if (transaction.type == "INCOME") {
             account.balance + transaction.amount
-        } else if (transaction.type == "EXPENSE") {
-            account.balance - transaction.amount
         } else {
-            account.balance
+            account.balance - transaction.amount
         }
 
         accountRepository.updateAccount(account.copy(balance = newBalance))
     }
 
-    /**
-     * STEP 3 — Handle edit transaction properly with balance validation
-     */
     fun updateTransaction(updatedTransaction: TransactionEntity) = viewModelScope.launch {
-        // 1. Get current data
         val oldTransaction = repository.getAllTransactions().first().find { it.id == updatedTransaction.id } ?: return@launch
         val accounts = accountRepository.getAllAccounts().first()
         
         val oldAccount = accounts.find { it.id == oldTransaction.accountId } ?: return@launch
         val newAccount = if (updatedTransaction.accountId == oldTransaction.accountId) oldAccount else accounts.find { it.id == updatedTransaction.accountId } ?: return@launch
 
-        // 2. Calculate balance if we reverse the old transaction
         var tempBalance = oldAccount.balance
         if (oldTransaction.type == "INCOME") {
             tempBalance -= oldTransaction.amount
@@ -90,15 +66,12 @@ class TransactionViewModel(
             tempBalance += oldTransaction.amount
         }
 
-        // If we are changing accounts, we need to handle both
         if (oldTransaction.accountId == updatedTransaction.accountId) {
-            // Check if updated transaction is valid on tempBalance
             if (updatedTransaction.type == "EXPENSE" && tempBalance - updatedTransaction.amount < 0) {
                 _uiEvent.emit("Insufficient balance in this account")
                 return@launch
             }
             
-            // Apply updates to the same account
             val finalBalance = if (updatedTransaction.type == "INCOME") {
                 tempBalance + updatedTransaction.amount
             } else {
@@ -107,26 +80,19 @@ class TransactionViewModel(
             
             repository.updateTransaction(updatedTransaction)
             accountRepository.updateAccount(oldAccount.copy(balance = finalBalance))
-            
         } else {
-            // Changing account: 
-            // 1. Check if old account would go negative if we reverse an income (Edge case)
             if (tempBalance < 0) {
                 _uiEvent.emit("Cannot change account: current account would have negative balance")
                 return@launch
             }
             
-            // 2. Check if new account has enough balance for updated transaction (if expense)
             if (updatedTransaction.type == "EXPENSE" && newAccount.balance - updatedTransaction.amount < 0) {
                 _uiEvent.emit("Insufficient balance in the new account")
                 return@launch
             }
 
-            // Apply:
-            // Reverse old from oldAccount
             accountRepository.updateAccount(oldAccount.copy(balance = tempBalance))
             
-            // Apply new to newAccount
             val finalNewBalance = if (updatedTransaction.type == "INCOME") {
                 newAccount.balance + updatedTransaction.amount
             } else {
@@ -138,21 +104,21 @@ class TransactionViewModel(
         }
     }
 
+    /**
+     * Deletes a transaction and reverses its impact on the account balance.
+     */
     fun deleteTransaction(transaction: TransactionEntity) = viewModelScope.launch {
-        // STEP 7 — Debug check
-        Log.d("DELETE_DEBUG", "Deleting transaction ID: ${transaction.id}")
-        
-        // Reverse balance effect when deleting
         val accounts = accountRepository.getAllAccounts().first()
         val account = accounts.find { it.id == transaction.accountId } ?: return@launch
         
+        // Reverse balance effect: Subtract if it was income, Add if it was expense
         val restoredBalance = if (transaction.type == "INCOME") {
             account.balance - transaction.amount
         } else {
             account.balance + transaction.amount
         }
         
-        // If deleting an income causes negative balance
+        // Validation: Ensure account balance doesn't become negative by deleting an income
         if (restoredBalance < 0) {
             _uiEvent.emit("Cannot delete: account balance would become negative")
             return@launch

@@ -76,6 +76,9 @@ fun TransactionScreen() {
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
     var collapsedSections by rememberSaveable { mutableStateOf(listOf<Long>()) }
     var isAddFormVisible by rememberSaveable { mutableStateOf(false) }
+    
+    // State for delete confirmation dialog
+    var itemToDelete by remember { mutableStateOf<TransactionListItem?>(null) }
 
     val consolidatedTransactions = remember(transactions) {
         TransactionConsolidationEngine.consolidate(transactions)
@@ -128,6 +131,39 @@ fun TransactionScreen() {
             onSave = { updatedTransaction ->
                 viewModel.updateTransaction(updatedTransaction)
                 editingTransaction = null
+            }
+        )
+    }
+
+    // Delete Confirmation Dialog
+    itemToDelete?.let { listItem ->
+        AlertDialog(
+            onDismissRequest = { itemToDelete = null },
+            title = { Text(text = "Delete Transaction") },
+            text = { Text(text = "Are you sure you want to delete this transaction? This action will also update your account balance.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        when (listItem) {
+                            is TransactionListItem.Regular -> {
+                                viewModel.deleteTransaction(listItem.transaction)
+                            }
+                            is TransactionListItem.Transfer -> {
+                                viewModel.deleteTransaction(listItem.sourceEntity)
+                                viewModel.deleteTransaction(listItem.destinationEntity)
+                            }
+                        }
+                        itemToDelete = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { itemToDelete = null }) {
+                    Text("Cancel")
+                }
             }
         )
     }
@@ -260,7 +296,7 @@ fun TransactionScreen() {
                                 is TransactionListItem.Regular -> {
                                     TransactionItem(
                                         transaction = listItem.transaction,
-                                        onDelete = { viewModel.deleteTransaction(listItem.transaction) },
+                                        onDelete = { itemToDelete = listItem },
                                         onClick = { editingTransaction = listItem.transaction },
                                         showDelete = true
                                     )
@@ -268,10 +304,7 @@ fun TransactionScreen() {
                                 is TransactionListItem.Transfer -> {
                                     TransactionItem(
                                         transaction = listItem.sourceEntity,
-                                        onDelete = {
-                                            viewModel.deleteTransaction(listItem.sourceEntity)
-                                            viewModel.deleteTransaction(listItem.destinationEntity)
-                                        },
+                                        onDelete = { itemToDelete = listItem },
                                         onClick = {},
                                         overrideTitle = "${listItem.fromAccount} → ${listItem.toAccount}",
                                         isTransfer = true,
